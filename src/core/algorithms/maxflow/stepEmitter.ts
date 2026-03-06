@@ -1,7 +1,54 @@
 import type { AlgorithmStep } from '../../../core/steps/types';
+import type { GraphEdge, GraphElement } from '../../../core/graph/types';
 import { exampleGraphs } from '../../../data/examples/exampleGraphs';
 
-export const mockAlgorithmSteps: AlgorithmStep[] = [
+function isEdgeElement(element: GraphElement): element is GraphEdge {
+  return 'source' in element.data && 'target' in element.data;
+}
+
+function buildResidualElements(elements: GraphElement[]): GraphElement[] {
+  const nodes = elements.filter((element) => !isEdgeElement(element));
+  const edges = elements.filter(isEdgeElement);
+  const residualEdges: GraphEdge[] = [];
+
+  for (const edge of edges) {
+    const capacity = edge.data.capacity ?? 0;
+    const flow = edge.data.flow ?? 0;
+    const forwardResidual = capacity - flow;
+
+    if (forwardResidual > 0) {
+      residualEdges.push({
+        data: {
+          id: `${edge.data.id}:rf`,
+          source: edge.data.source,
+          target: edge.data.target,
+          capacity: forwardResidual,
+          flow: 0,
+          label: `${forwardResidual}`,
+        },
+        classes: 'residual',
+      });
+    }
+
+    if (flow > 0) {
+      residualEdges.push({
+        data: {
+          id: `${edge.data.id}:rb`,
+          source: edge.data.target,
+          target: edge.data.source,
+          capacity: flow,
+          flow: 0,
+          label: `${flow}`,
+        },
+        classes: 'residual',
+      });
+    }
+  }
+
+  return [...nodes, ...residualEdges];
+}
+
+const steps: AlgorithmStep[] = [
   {
     id: 0,
     title: 'Initial State',
@@ -74,3 +121,8 @@ export const mockAlgorithmSteps: AlgorithmStep[] = [
     ],
   },
 ];
+
+export const mockAlgorithmSteps: AlgorithmStep[] = steps.map((step) => ({
+  ...step,
+  residualElements: buildResidualElements(step.elements),
+}));

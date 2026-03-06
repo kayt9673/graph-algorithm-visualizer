@@ -9,7 +9,7 @@ import { PlaybackControls } from '../features/playback/PlaybackControls';
 import { usePlayback } from '../features/playback/usePlayback';
 import { mockAlgorithmSteps } from '../core/algorithms/maxflow/stepEmitter';
 import { exampleGraphs } from '../data/examples/exampleGraphs';
-import type { AppState } from '../core/graph/types';
+import type { AppState, GraphElement } from '../core/graph/types';
 
 export default function App() {
   const [appState, setAppState] = useState<AppState>('editing');
@@ -23,16 +23,21 @@ export default function App() {
   const [currentStep, setCurrentStep] = useState(0);
   const [playbackSpeed, setPlaybackSpeed] = useState([1]);
   const [autoPlay, setAutoPlay] = useState(false);
-  const [stateJsonOpen, setStateJsonOpen] = useState(false);
 
   const cyRef = useRef<cytoscape.Core | null>(null);
 
   const currentGraph = exampleGraphs[selectedExample] ?? exampleGraphs.simple;
   const currentStepData = mockAlgorithmSteps[currentStep];
 
-  const graphElements = appState === 'running' || appState === 'finished'
-    ? currentStepData?.elements ?? []
-    : currentGraph.nodes.concat(currentGraph.edges);
+  const editingElements = currentGraph.nodes.concat(currentGraph.edges);
+  const normalGraphElements: GraphElement[] =
+    appState === 'running' || appState === 'finished'
+      ? currentStepData?.elements ?? []
+      : editingElements;
+  const residualGraphElements: GraphElement[] =
+    appState === 'running' || appState === 'finished'
+      ? currentStepData?.residualElements ?? []
+      : [];
 
   const handleCyReady = (cy: cytoscape.Core) => {
     cyRef.current = cy;
@@ -97,7 +102,8 @@ export default function App() {
         center={
           <GraphCanvasPanel
             appState={appState}
-            elements={graphElements}
+            normalElements={normalGraphElements}
+            residualElements={residualGraphElements}
             showResidual={showResidual}
             onShowResidualChange={setShowResidual}
             showEdgeLabels={showEdgeLabels}
@@ -115,8 +121,6 @@ export default function App() {
             appState={appState}
             currentStepData={currentStepData}
             totalSteps={mockAlgorithmSteps.length}
-            stateJsonOpen={stateJsonOpen}
-            onStateJsonOpenChange={setStateJsonOpen}
           />
         }
       />

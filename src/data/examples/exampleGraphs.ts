@@ -1,6 +1,6 @@
-import type { ExampleGraph } from '../../core/graph/types';
+import type { FlowNetworkGraph } from '../../core/graph/types';
 
-export const exampleGraphs: Record<string, ExampleGraph> = {
+export const exampleGraphs: Record<string, FlowNetworkGraph> = {
   simple: {
     name: 'Simple Flow Network',
     nodes: [

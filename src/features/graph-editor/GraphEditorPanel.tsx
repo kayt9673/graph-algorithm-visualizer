@@ -5,12 +5,12 @@ import { Label } from '../../app/components/ui/label';
 import { ScrollArea } from '../../app/components/ui/scroll-area';
 import { Separator } from '../../app/components/ui/separator';
 import { Switch } from '../../app/components/ui/switch';
-import type { ExampleGraph } from '../../core/graph/types';
+import type { GraphModel } from '../../core/graph/types';
 
 interface GraphEditorPanelProps {
   isDirected: boolean;
   onDirectedChange: (value: boolean) => void;
-  currentGraph: ExampleGraph;
+  currentGraph: GraphModel;
 }
 
 export function GraphEditorPanel({ isDirected, onDirectedChange, currentGraph }: GraphEditorPanelProps) {

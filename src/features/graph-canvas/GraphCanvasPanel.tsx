@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Info, Maximize2, ZoomIn, ZoomOut } from 'lucide-react';
 import type cytoscape from 'cytoscape';
 import type { AppState, GraphElement } from '../../core/graph/types';
@@ -8,7 +9,8 @@ import { CytoscapeCanvas } from './CytoscapeCanvas';
 
 interface GraphCanvasPanelProps {
   appState: AppState;
-  elements: GraphElement[];
+  normalElements: GraphElement[];
+  residualElements: GraphElement[];
   showResidual: boolean;
   onShowResidualChange: (value: boolean) => void;
   showEdgeLabels: boolean;
@@ -23,7 +25,8 @@ interface GraphCanvasPanelProps {
 
 export function GraphCanvasPanel({
   appState,
-  elements,
+  normalElements,
+  residualElements,
   showResidual,
   onShowResidualChange,
   showEdgeLabels,
@@ -35,6 +38,48 @@ export function GraphCanvasPanel({
   onZoomOut,
   onFit,
 }: GraphCanvasPanelProps) {
+  const normalCyRef = useRef<cytoscape.Core | null>(null);
+  const residualCyRef = useRef<cytoscape.Core | null>(null);
+
+  const showSplitView =
+    showResidual &&
+    (appState === 'running' || appState === 'finished') &&
+    residualElements.length > 0;
+
+  const syncResidualPositions = () => {
+    const normalCy = normalCyRef.current;
+    const residualCy = residualCyRef.current;
+    if (!normalCy || !residualCy) return;
+
+    residualCy.batch(() => {
+      residualCy.nodes().forEach((residualNode) => {
+        const normalNode = normalCy.getElementById(residualNode.id());
+        if (normalNode.length > 0) {
+          residualNode.position(normalNode.position());
+        }
+      });
+    });
+
+    residualCy.fit(undefined, 30);
+  };
+
+  useEffect(() => {
+    if (!showSplitView) return;
+    const frame = requestAnimationFrame(syncResidualPositions);
+    return () => cancelAnimationFrame(frame);
+  }, [showSplitView, normalElements, residualElements]);
+
+  const handleNormalReady = (cy: cytoscape.Core) => {
+    normalCyRef.current = cy;
+    onReady(cy);
+    if (showSplitView) syncResidualPositions();
+  };
+
+  const handleResidualReady = (cy: cytoscape.Core) => {
+    residualCyRef.current = cy;
+    syncResidualPositions();
+  };
+
   return (
     <div className="flex-1 flex flex-col bg-muted/20">
       <div className="border-b border-border bg-card px-4 lg:px-6 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -71,7 +116,24 @@ export function GraphCanvasPanel({
               </div>
             </div>
           ) : (
-            <CytoscapeCanvas elements={elements} onReady={onReady} />
+            showSplitView ? (
+              <div className="h-full grid grid-cols-1 xl:grid-cols-2">
+                <div className="min-h-0 border-b xl:border-b-0 xl:border-r border-border">
+                  <div className="px-3 py-2 text-xs font-medium border-b border-border bg-muted/40">Flow Graph</div>
+                  <div className="h-[calc(100%-33px)]">
+                    <CytoscapeCanvas elements={normalElements} onReady={handleNormalReady} />
+                  </div>
+                </div>
+                <div className="min-h-0">
+                  <div className="px-3 py-2 text-xs font-medium border-b border-border bg-muted/40">Residual Graph</div>
+                  <div className="h-[calc(100%-33px)]">
+                    <CytoscapeCanvas elements={residualElements} onReady={handleResidualReady} disableAutoLayout />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <CytoscapeCanvas elements={normalElements} onReady={handleNormalReady} />
+            )
           )}
         </div>
       </div>

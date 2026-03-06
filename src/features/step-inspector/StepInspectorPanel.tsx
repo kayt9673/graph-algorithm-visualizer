@@ -1,7 +1,6 @@
-import { ChevronDown, Settings } from 'lucide-react';
+import { Settings } from 'lucide-react';
 import { Badge } from '../../app/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../../app/components/ui/card';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../app/components/ui/collapsible';
 import { ScrollArea } from '../../app/components/ui/scroll-area';
 import { Separator } from '../../app/components/ui/separator';
 import type { AppState } from '../../core/graph/types';
@@ -11,16 +10,12 @@ interface StepInspectorPanelProps {
   appState: AppState;
   currentStepData?: AlgorithmStep;
   totalSteps: number;
-  stateJsonOpen: boolean;
-  onStateJsonOpenChange: (open: boolean) => void;
 }
 
 export function StepInspectorPanel({
   appState,
   currentStepData,
   totalSteps,
-  stateJsonOpen,
-  onStateJsonOpenChange,
 }: StepInspectorPanelProps) {
   return (
     <div
@@ -74,29 +69,6 @@ export function StepInspectorPanel({
                     <CardContent><div className="text-2xl font-medium">{currentStepData.totalMaxFlow ?? 0} units</div></CardContent>
                   </Card>
                 </div>
-
-                <Separator />
-
-                <Collapsible open={stateJsonOpen} onOpenChange={onStateJsonOpenChange}>
-                  <CollapsibleTrigger className="flex items-center justify-between w-full">
-                    <span className="text-sm font-medium">State JSON</span>
-                    <ChevronDown className={`h-4 w-4 transition-transform ${stateJsonOpen ? 'rotate-180' : ''}`} />
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="mt-3">
-                    <pre className="text-xs bg-muted p-3 rounded-md overflow-auto max-h-[200px] font-mono">
-                      {JSON.stringify(
-                        {
-                          step: currentStepData.id,
-                          flow: currentStepData.currentFlow,
-                          maxFlow: currentStepData.totalMaxFlow,
-                          path: currentStepData.path,
-                        },
-                        null,
-                        2,
-                      )}
-                    </pre>
-                  </CollapsibleContent>
-                </Collapsible>
               </div>
             ) : (
               <div className="text-center py-8 text-muted-foreground">

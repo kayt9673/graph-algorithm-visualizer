@@ -9,4 +9,5 @@ export interface AlgorithmStep {
   path?: string[];
   totalMaxFlow?: number;
   elements: GraphElement[];
+  residualElements?: GraphElement[];
 }
