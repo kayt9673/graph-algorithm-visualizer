@@ -30,7 +30,7 @@ function pickDistinctRandom<T>(items: T[], count: number): T[] {
 }
 
 function buildGeneratedNodes(complexity: GraphComplexity) {
-  const intermediateCount = complexity === 'simple' ? randomInt(2, 3) : randomInt(4, 6);
+  const intermediateCount = complexity === 'simple' ? randomInt(2, 3) : randomInt(3, 4);
   const nodeIds = 'abcdefghijklmnopqrstuvwxyz'.split('').slice(0, intermediateCount);
 
   return [
@@ -46,8 +46,8 @@ function generateGraphByComplexity(complexity: GraphComplexity): FlowNetworkGrap
     .map((node) => node.data.id)
     .filter((id) => id !== 's' && id !== 't');
   const edgePairs = new Set<string>();
-  const capacityRange = complexity === 'simple' ? [4, 18] : [3, 30];
-  const edgeTargetCount = complexity === 'simple' ? randomInt(4, 7) : randomInt(8, 15);
+  const capacityRange = complexity === 'simple' ? [4, 14] : [5, 18];
+  const edgeTargetCount = complexity === 'simple' ? randomInt(4, 6) : randomInt(6, 9);
 
   const addEdge = (source: string, target: string) => {
     if (source === target) return;
@@ -69,16 +69,16 @@ function generateGraphByComplexity(complexity: GraphComplexity): FlowNetworkGrap
   }
 
   for (const id of intermediateIds) {
-    if (Math.random() < 0.8) addEdge('s', id);
-    if (Math.random() < 0.8) addEdge(id, 't');
+    if (Math.random() < 0.7) addEdge('s', id);
+    if (Math.random() < 0.7) addEdge(id, 't');
   }
 
   for (let i = 0; i < intermediateIds.length; i += 1) {
     for (let j = i + 1; j < intermediateIds.length; j += 1) {
-      if (Math.random() < (complexity === 'simple' ? 0.35 : 0.45)) {
+      if (Math.random() < (complexity === 'simple' ? 0.2 : 0.3)) {
         addEdge(intermediateIds[i], intermediateIds[j]);
       }
-      if (Math.random() < (complexity === 'simple' ? 0.1 : 0.2)) {
+      if (Math.random() < (complexity === 'simple' ? 0.05 : 0.12)) {
         addEdge(intermediateIds[j], intermediateIds[i]);
       }
     }

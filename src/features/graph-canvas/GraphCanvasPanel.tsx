@@ -133,13 +133,20 @@ export function GraphCanvasPanel({
             <div className="h-full grid grid-cols-1 xl:grid-cols-2">
               <div className="min-h-0 border-b xl:border-b-0 xl:border-r border-border">
                 <div className="px-3 py-2 text-xs font-medium border-b border-border bg-muted/40">Flow Graph</div>
-                <div className="h-[calc(100%-33px)]">
+                <div className="h-[calc(100%-73px)]">
                   <CytoscapeCanvas elements={normalElements} onReady={handleNormalReady} />
+                </div>
+                <div className="h-10 px-3 border-t border-border bg-card/80 flex flex-wrap items-center gap-3 text-xs">
+                  <span className="font-medium">Legend:</span>
+                  <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#2563eb]" /><span>Normal</span></div>
+                  <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#16a34a]" /><span>Augmenting Path</span></div>
+                  <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#dc2626]" /><span>Saturated</span></div>
+                  <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#f59e0b]" /><span>Changed</span></div>
                 </div>
               </div>
                 <div className="min-h-0">
                   <div className="px-3 py-2 text-xs font-medium border-b border-border bg-muted/40">Residual Graph</div>
-                  <div className="h-[calc(100%-33px)]">
+                  <div className="h-[calc(100%-73px)]">
                     {residualElements.length > 0 ? (
                       <CytoscapeCanvas
                         elements={residualElements}
@@ -152,22 +159,28 @@ export function GraphCanvasPanel({
                       </div>
                     )}
                   </div>
+                  <div className="h-10 px-3 border-t border-border bg-card/80 flex flex-wrap items-center gap-3 text-xs">
+                    <span className="font-medium">Legend:</span>
+                    <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 border-t-2 border-dashed border-[#9ca3af]" /><span>Residual</span></div>
+                    <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 border-t-2 border-dashed border-[#22c55e]" /><span>Forward Edge</span></div>
+                    <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 border-t-2 border-dashed border-[#f97316]" /><span>Backward Edge</span></div>
+                  </div>
                 </div>
               </div>
           ) : (
-            <CytoscapeCanvas elements={normalElements} onReady={handleNormalReady} />
+            <div className="h-full flex flex-col">
+              <div className="flex-1 min-h-0">
+                <CytoscapeCanvas elements={normalElements} onReady={handleNormalReady} />
+              </div>
+              <div className="h-10 px-3 border-t border-border bg-card/80 flex flex-wrap items-center gap-3 text-xs">
+                <span className="font-medium">Legend:</span>
+                <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#2563eb]" /><span>Normal</span></div>
+                <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#16a34a]" /><span>Augmenting Path</span></div>
+                <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#dc2626]" /><span>Saturated</span></div>
+                <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#f59e0b]" /><span>Changed</span></div>
+              </div>
+            </div>
           )}
-        </div>
-      </div>
-
-      <div className="border-t border-border bg-card px-4 lg:px-6 py-3">
-        <div className="flex flex-wrap items-center gap-4 lg:gap-6 text-sm">
-          <span className="font-medium">Legend:</span>
-          <div className="flex items-center gap-2"><div className="w-8 h-0.5 bg-[#2563eb]" /><span className="text-xs">Normal</span></div>
-          <div className="flex items-center gap-2"><div className="w-8 h-0.5 bg-[#16a34a]" /><span className="text-xs">Augmenting Path</span></div>
-          <div className="flex items-center gap-2"><div className="w-8 h-0.5 bg-[#dc2626]" /><span className="text-xs">Saturated</span></div>
-          <div className="flex items-center gap-2"><div className="w-8 h-0.5 bg-[#f59e0b]" /><span className="text-xs">Changed This Step</span></div>
-          <div className="flex items-center gap-2"><div className="w-8 h-0.5 border-t-2 border-dashed border-[#9ca3af]" /><span className="text-xs">Residual</span></div>
         </div>
       </div>
     </div>

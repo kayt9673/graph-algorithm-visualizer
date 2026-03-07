@@ -69,10 +69,38 @@ export const CYTOSCAPE_STYLE = [
   {
     selector: 'edge.residual',
     style: {
-      'line-color': '#9ca3af',
-      'target-arrow-color': '#9ca3af',
+      'line-color': '#64748b',
+      'target-arrow-color': '#64748b',
       'line-style': 'dashed',
-      width: 2,
+      width: 3,
+    },
+  },
+  {
+    selector: 'edge.residual.residual-forward-focus',
+    style: {
+      'line-color': '#22c55e',
+      'target-arrow-color': '#22c55e',
+      'line-style': 'dashed',
+      width: 5,
+      opacity: 1,
+      'z-index': 999,
+    },
+  },
+  {
+    selector: 'edge.residual.residual-backward-focus',
+    style: {
+      'line-color': '#f97316',
+      'target-arrow-color': '#f97316',
+      'line-style': 'dashed',
+      width: 5,
+      opacity: 1,
+      'z-index': 999,
+    },
+  },
+  {
+    selector: 'edge.residual-dim',
+    style: {
+      opacity: 0.35,
     },
   },
   {

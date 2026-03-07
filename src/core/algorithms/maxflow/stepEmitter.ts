@@ -10,6 +10,7 @@ import { runFordFulkerson } from './fordFulkerson';
  * `apply`: Highlights edges whose flow changed in the current step. 
  */
 type FlowStepMode = 'steady' | 'path' | 'apply';
+const FLOW_VISUAL_CLASSES = new Set(['augmenting', 'saturated', 'changed', 'dim']);
 
 /**
  * Checks whether `element` is an edge.
@@ -24,6 +25,18 @@ function isEdgeElement(element: GraphElement): element is GraphEdge {
 function className(...names: Array<string | undefined>): string | undefined {
   const merged = names.filter(Boolean).join(' ').trim();
   return merged.length > 0 ? merged : undefined;
+}
+
+/**
+ * Removes step-specific visualization classes so each frame is derived from clean edge state.
+ */
+function stripFlowVisualClasses(classes?: string): string | undefined {
+  if (!classes) return undefined;
+  const cleaned = classes
+    .split(/\s+/)
+    .filter((token) => token.length > 0 && !FLOW_VISUAL_CLASSES.has(token))
+    .join(' ');
+  return cleaned.length > 0 ? cleaned : undefined;
 }
 
 /**
@@ -65,15 +78,23 @@ function computeChangedEdgeIds(previous: GraphElement[], next: GraphElement[]): 
 /**
  * Returns the elements of the residual graph from `elements`. 
  */
-export function buildResidualElementsFromElements(elements: GraphElement[]): GraphElement[] {
+export function buildResidualElementsFromElements(elements: GraphElement[], path?: string[]): GraphElement[] {
   const nodes = elements.filter((element) => !isEdgeElement(element));
   const edges = elements.filter(isEdgeElement);
   const residualEdges: GraphEdge[] = [];
+  const pathPairs = new Set<string>();
+
+  if (path) {
+    for (let i = 0; i < path.length - 1; i += 1) {
+      pathPairs.add(`${path[i]}->${path[i + 1]}`);
+    }
+  }
 
   for (const edge of edges) {
     const capacity = edge.data.capacity ?? 0;
     const flow = edge.data.flow ?? 0;
     const forwardResidual = capacity - flow;
+    const onPath = pathPairs.has(`${edge.data.source}->${edge.data.target}`);
 
     if (forwardResidual > 0) {
       residualEdges.push({
@@ -85,7 +106,11 @@ export function buildResidualElementsFromElements(elements: GraphElement[]): Gra
           flow: 0,
           label: `${forwardResidual}`,
         },
-        classes: 'residual',
+        classes: className(
+          'residual',
+          onPath ? 'residual-forward-focus' : undefined,
+          pathPairs.size > 0 && !onPath ? 'residual-dim' : undefined,
+        ),
       });
     }
 
@@ -99,7 +124,11 @@ export function buildResidualElementsFromElements(elements: GraphElement[]): Gra
           flow: 0,
           label: `${flow}`,
         },
-        classes: 'residual',
+        classes: className(
+          'residual',
+          onPath ? 'residual-backward-focus' : undefined,
+          pathPairs.size > 0 && !onPath ? 'residual-dim' : undefined,
+        ),
       });
     }
   }
@@ -136,7 +165,7 @@ function annotateFlowElements(
     return {
       ...edge,
       classes: className(
-        edge.classes,
+        stripFlowVisualClasses(edge.classes),
         inPath ? 'augmenting' : undefined,
         saturated ? 'saturated' : undefined,
         changedEdgeIds.has(edge.data.id) ? 'changed' : undefined,
@@ -159,23 +188,6 @@ function toFlowElements(
 ): GraphElement[] {
   const graph = flowGraph.toExampleGraph();
   return annotateFlowElements(graph.nodes.concat(graph.edges), path, changedEdgeIds, mode);
-}
-
-/**
- * Converts `residualGraph` to a `GraphElement[]` with residual visualization. 
- */
-function toResidualElements(residualGraph: MaxFlowGraph): GraphElement[] {
-  const graph = residualGraph.toExampleGraph();
-  const residualEdges = graph.edges.map((edge) => ({
-    ...edge,
-    data: {
-      ...edge.data,
-      label: `${edge.data.capacity ?? 0}`,
-    },
-    classes: className(edge.classes, 'residual'),
-  }));
-
-  return graph.nodes.concat(residualEdges);
 }
 
 /**
@@ -216,7 +228,7 @@ export function emitFordFulkersonSteps(graph: FlowNetworkGraph): MaxFlowAlgorith
       path: snapshot.path,
       totalMaxFlow: previousTotalFlow,
       elements: annotateFlowElements(previousFlowElements, snapshot.path, new Set<string>(), 'path'),
-      residualElements: buildResidualElementsFromElements(previousFlowElements),
+      residualElements: buildResidualElementsFromElements(previousFlowElements, snapshot.path),
     });
 
     steps.push({
@@ -229,7 +241,7 @@ export function emitFordFulkersonSteps(graph: FlowNetworkGraph): MaxFlowAlgorith
       path: snapshot.path,
       totalMaxFlow: snapshot.totalFlow,
       elements: annotateFlowElements(nextFlowElements, snapshot.path, changedEdgeIds, 'apply'),
-      residualElements: toResidualElements(snapshot.residualGraph),
+      residualElements: buildResidualElementsFromElements(nextFlowElements, snapshot.path),
     });
 
     previousFlowElements = nextFlowElements;
