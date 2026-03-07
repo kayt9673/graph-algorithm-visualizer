@@ -11,14 +11,14 @@ export interface MaxFlowEdgeInit extends DirectedEdgeInit {
  */
 export class MaxFlowEdge extends DirectedEdge {
   
-  /** A positive edge capacity. */
+  /** A positive edge capacity. (Default is 1). */
   public capacity: number;
   /** The current flow value of the edge. (Default is 0). */
   public flow: number;
 
   constructor(init: MaxFlowEdgeInit) {
     super(init);
-    this.capacity = init.capacity;
+    this.capacity = init.capacity ?? 1;
     this.flow = init.flow ?? 0;
     this.label = this.formatLabel();
   }

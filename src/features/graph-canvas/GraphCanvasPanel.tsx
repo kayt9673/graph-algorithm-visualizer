@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Info, Maximize2, ZoomIn, ZoomOut } from 'lucide-react';
+import { Maximize2, ZoomIn, ZoomOut } from 'lucide-react';
 import type cytoscape from 'cytoscape';
 import type { AppState, GraphElement } from '../../core/graph/types';
 import { Button } from '../../app/components/ui/button';
@@ -13,10 +13,6 @@ interface GraphCanvasPanelProps {
   residualElements: GraphElement[];
   showResidual: boolean;
   onShowResidualChange: (value: boolean) => void;
-  showEdgeLabels: boolean;
-  onShowEdgeLabelsChange: (value: boolean) => void;
-  showNodeIds: boolean;
-  onShowNodeIdsChange: (value: boolean) => void;
   onReady: (cy: cytoscape.Core) => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
@@ -29,10 +25,6 @@ export function GraphCanvasPanel({
   residualElements,
   showResidual,
   onShowResidualChange,
-  showEdgeLabels,
-  onShowEdgeLabelsChange,
-  showNodeIds,
-  onShowNodeIdsChange,
   onReady,
   onZoomIn,
   onZoomOut,
@@ -41,15 +33,13 @@ export function GraphCanvasPanel({
   const normalCyRef = useRef<cytoscape.Core | null>(null);
   const residualCyRef = useRef<cytoscape.Core | null>(null);
 
-  const showSplitView =
-    showResidual &&
-    (appState === 'running' || appState === 'finished') &&
-    residualElements.length > 0;
+  const showSplitView = showResidual;
+  const shouldSyncResidualView = appState === 'running' || appState === 'finished';
 
   const syncResidualPositions = () => {
     const normalCy = normalCyRef.current;
     const residualCy = residualCyRef.current;
-    if (!normalCy || !residualCy) return;
+    if (!normalCy || !residualCy || normalCy.destroyed() || residualCy.destroyed()) return;
 
     residualCy.batch(() => {
       residualCy.nodes().forEach((residualNode) => {
@@ -60,24 +50,64 @@ export function GraphCanvasPanel({
       });
     });
 
-    residualCy.fit(undefined, 30);
+    residualCy.zoom(normalCy.zoom());
+    residualCy.pan(normalCy.pan());
+  };
+
+  const isNormalLayoutReady = () => {
+    const normalCy = normalCyRef.current;
+    if (!normalCy || normalCy.destroyed()) return false;
+
+    const nodes = normalCy.nodes();
+    if (nodes.length <= 1) return true;
+
+    const box = nodes.boundingBox();
+    return box.w > 1 || box.h > 1;
+  };
+
+  const syncResidualPositionsWithRetry = (attempt = 0) => {
+    if (isNormalLayoutReady()) {
+      syncResidualPositions();
+      return;
+    }
+
+    if (attempt >= 30) return;
+    requestAnimationFrame(() => syncResidualPositionsWithRetry(attempt + 1));
   };
 
   useEffect(() => {
-    if (!showSplitView) return;
-    const frame = requestAnimationFrame(syncResidualPositions);
-    return () => cancelAnimationFrame(frame);
-  }, [showSplitView, normalElements, residualElements]);
+    if (!showSplitView || !shouldSyncResidualView) return;
+    const frameA = requestAnimationFrame(() => {
+      syncResidualPositions();
+      // A second frame catches cases where normal layout settles one tick later.
+      requestAnimationFrame(syncResidualPositions);
+    });
+
+    return () => cancelAnimationFrame(frameA);
+  }, [showSplitView, shouldSyncResidualView, normalElements, residualElements]);
+
+  useEffect(() => {
+    if (!showSplitView) {
+      residualCyRef.current = null;
+    }
+  }, [showSplitView]);
 
   const handleNormalReady = (cy: cytoscape.Core) => {
     normalCyRef.current = cy;
     onReady(cy);
-    if (showSplitView) syncResidualPositions();
+    if (showSplitView) {
+      requestAnimationFrame(() => syncResidualPositionsWithRetry());
+    }
   };
 
   const handleResidualReady = (cy: cytoscape.Core) => {
     residualCyRef.current = cy;
-    syncResidualPositions();
+    if (shouldSyncResidualView) {
+      requestAnimationFrame(() => syncResidualPositionsWithRetry());
+      return;
+    }
+
+    requestAnimationFrame(() => syncResidualPositionsWithRetry());
   };
 
   return (
@@ -94,46 +124,38 @@ export function GraphCanvasPanel({
             <Switch id="residual" checked={showResidual} onCheckedChange={onShowResidualChange} />
             <Label htmlFor="residual" className="text-sm cursor-pointer whitespace-nowrap">Show Residual Graph</Label>
           </div>
-          <div className="flex items-center gap-2">
-            <Switch id="edge-labels" checked={showEdgeLabels} onCheckedChange={onShowEdgeLabelsChange} />
-            <Label htmlFor="edge-labels" className="text-sm cursor-pointer whitespace-nowrap">Show Edge Labels</Label>
-          </div>
-          <div className="flex items-center gap-2">
-            <Switch id="node-ids" checked={showNodeIds} onCheckedChange={onShowNodeIdsChange} />
-            <Label htmlFor="node-ids" className="text-sm cursor-pointer whitespace-nowrap">Show Node IDs</Label>
-          </div>
         </div>
       </div>
 
       <div className="flex-1 relative p-4 lg:p-6 min-h-[400px]">
         <div className="absolute inset-4 lg:inset-6 border border-border rounded-lg bg-background overflow-hidden">
-          {appState === 'empty' ? (
-            <div className="h-full flex items-center justify-center text-muted-foreground">
-              <div className="text-center space-y-2">
-                <Info className="h-12 w-12 mx-auto opacity-50" />
-                <p>No graph loaded</p>
-                <p className="text-sm">Select an example or add nodes and edges</p>
-              </div>
-            </div>
-          ) : (
-            showSplitView ? (
-              <div className="h-full grid grid-cols-1 xl:grid-cols-2">
-                <div className="min-h-0 border-b xl:border-b-0 xl:border-r border-border">
-                  <div className="px-3 py-2 text-xs font-medium border-b border-border bg-muted/40">Flow Graph</div>
-                  <div className="h-[calc(100%-33px)]">
-                    <CytoscapeCanvas elements={normalElements} onReady={handleNormalReady} />
-                  </div>
+          {showSplitView ? (
+            <div className="h-full grid grid-cols-1 xl:grid-cols-2">
+              <div className="min-h-0 border-b xl:border-b-0 xl:border-r border-border">
+                <div className="px-3 py-2 text-xs font-medium border-b border-border bg-muted/40">Flow Graph</div>
+                <div className="h-[calc(100%-33px)]">
+                  <CytoscapeCanvas elements={normalElements} onReady={handleNormalReady} />
                 </div>
+              </div>
                 <div className="min-h-0">
                   <div className="px-3 py-2 text-xs font-medium border-b border-border bg-muted/40">Residual Graph</div>
                   <div className="h-[calc(100%-33px)]">
-                    <CytoscapeCanvas elements={residualElements} onReady={handleResidualReady} disableAutoLayout />
+                    {residualElements.length > 0 ? (
+                      <CytoscapeCanvas
+                        elements={residualElements}
+                        onReady={handleResidualReady}
+                        disableAutoLayout
+                      />
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-muted-foreground text-sm px-4 text-center">
+                        Run the algorithm to populate the residual graph.
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
-            ) : (
-              <CytoscapeCanvas elements={normalElements} onReady={handleNormalReady} />
-            )
+          ) : (
+            <CytoscapeCanvas elements={normalElements} onReady={handleNormalReady} />
           )}
         </div>
       </div>
@@ -144,8 +166,8 @@ export function GraphCanvasPanel({
           <div className="flex items-center gap-2"><div className="w-8 h-0.5 bg-[#2563eb]" /><span className="text-xs">Normal</span></div>
           <div className="flex items-center gap-2"><div className="w-8 h-0.5 bg-[#16a34a]" /><span className="text-xs">Augmenting Path</span></div>
           <div className="flex items-center gap-2"><div className="w-8 h-0.5 bg-[#dc2626]" /><span className="text-xs">Saturated</span></div>
+          <div className="flex items-center gap-2"><div className="w-8 h-0.5 bg-[#f59e0b]" /><span className="text-xs">Changed This Step</span></div>
           <div className="flex items-center gap-2"><div className="w-8 h-0.5 border-t-2 border-dashed border-[#9ca3af]" /><span className="text-xs">Residual</span></div>
-          <div className="flex items-center gap-2"><div className="w-8 h-0.5 bg-[#f59e0b]" /><span className="text-xs">Active</span></div>
         </div>
       </div>
     </div>

@@ -8,11 +8,19 @@ export interface DirectedEdgeInit {
   classes?: string;
 }
 
+/**
+ * A directed edge. 
+ */
 export class DirectedEdge {
+  /** The ID of the edge. */
   public readonly id: string;
+  /** The source node of the edge. */
   public readonly source: string;
+  /** The target node of the edge. */
   public readonly target: string;
+  /** Optional display label of the edge. */
   public label?: string;
+  /** Optional class string for visualization styling. */
   public classes?: string;
 
   constructor(init: DirectedEdgeInit) {
@@ -23,6 +31,9 @@ export class DirectedEdge {
     this.classes = init.classes;
   }
 
+  /**
+   * Converts this edge to UI-friendly `GraphEdge`.
+   */
   toGraphEdge(): GraphEdge {
     return {
       data: {
@@ -35,6 +46,9 @@ export class DirectedEdge {
     };
   }
 
+  /**
+   * Returns a copy of this edge.
+   */
   clone(): DirectedEdge {
     return new DirectedEdge({
       id: this.id,

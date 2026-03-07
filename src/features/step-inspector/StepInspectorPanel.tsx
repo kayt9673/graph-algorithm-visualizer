@@ -4,11 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../app/components/u
 import { ScrollArea } from '../../app/components/ui/scroll-area';
 import { Separator } from '../../app/components/ui/separator';
 import type { AppState } from '../../core/graph/types';
-import type { AlgorithmStep } from '../../core/steps/types';
+import type { MaxFlowAlgorithmStep } from '../../core/steps/types';
 
 interface StepInspectorPanelProps {
   appState: AppState;
-  currentStepData?: AlgorithmStep;
+  currentStepData?: MaxFlowAlgorithmStep;
   totalSteps: number;
 }
 
@@ -44,6 +44,15 @@ export function StepInspectorPanel({
                   <Card>
                     <CardHeader className="pb-3"><CardTitle className="text-sm">Current Step Flow</CardTitle></CardHeader>
                     <CardContent><div className="text-2xl font-medium">{currentStepData.currentFlow ?? 0} units</div></CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-3"><CardTitle className="text-sm">Flow Delta</CardTitle></CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-medium min-h-[2rem]">
+                        {currentStepData.flowDelta !== undefined ? `+${currentStepData.flowDelta} units` : '-'}
+                      </div>
+                    </CardContent>
                   </Card>
 
                   <Card>

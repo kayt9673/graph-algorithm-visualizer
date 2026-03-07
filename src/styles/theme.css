@@ -45,7 +45,6 @@
   --graph-augmenting: #16a34a;
   --graph-saturated: #dc2626;
   --graph-residual: #9ca3af;
-  --graph-active: #f59e0b;
 }
 
 .dark {
@@ -128,7 +127,6 @@
   --color-graph-augmenting: var(--graph-augmenting);
   --color-graph-saturated: var(--graph-saturated);
   --color-graph-residual: var(--graph-residual);
-  --color-graph-active: var(--graph-active);
 }
 
 @layer base {

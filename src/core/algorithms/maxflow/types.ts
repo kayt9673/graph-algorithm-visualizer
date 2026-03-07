@@ -9,14 +9,7 @@ import { MaxFlowGraph } from './MaxFlowGraph';
 export { MaxFlowEdge, MaxFlowGraph };
 
 /**
- * Formats edge labels as `flow`/`capacity` for UI display.
- */
-export function formatFlowLabel(flow: number, capacity: number): string {
-  return `${flow}/${capacity}`;
-}
-
-/**
- * Converts a flow-network graph into a `MaxFlowGraph`.
+ * Converts `FlowNetworkGraph` into a `MaxFlowGraph`.
  */
 export function toMaxFlowGraph(graph: FlowNetworkGraph): MaxFlowGraph {
   return MaxFlowGraph.fromExampleGraph(graph);

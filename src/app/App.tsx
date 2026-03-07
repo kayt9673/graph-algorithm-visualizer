@@ -2,32 +2,158 @@ import { useCallback, useRef, useState } from 'react';
 import type cytoscape from 'cytoscape';
 import { HeaderBar } from './layout/HeaderBar';
 import { ThreePanelLayout } from './layout/ThreePanelLayout';
-import { GraphEditorPanel } from '../features/graph-editor/GraphEditorPanel';
 import { GraphCanvasPanel } from '../features/graph-canvas/GraphCanvasPanel';
 import { StepInspectorPanel } from '../features/step-inspector/StepInspectorPanel';
 import { PlaybackControls } from '../features/playback/PlaybackControls';
 import { usePlayback } from '../features/playback/usePlayback';
-import { mockAlgorithmSteps } from '../core/algorithms/maxflow/stepEmitter';
-import { exampleGraphs } from '../data/examples/exampleGraphs';
-import type { AppState, GraphElement } from '../core/graph/types';
+import { emitFordFulkersonSteps } from '../core/algorithms/maxflow/stepEmitter';
+import type { MaxFlowAlgorithmStep } from '../core/steps/types';
+import type { AppState, FlowNetworkGraph, GraphElement } from '../core/graph/types';
+
+type GraphComplexity = 'simple' | 'complex';
+
+function randomInt(min: number, max: number): number {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function pickDistinctRandom<T>(items: T[], count: number): T[] {
+  const pool = [...items];
+  const picked: T[] = [];
+
+  while (pool.length > 0 && picked.length < count) {
+    const idx = randomInt(0, pool.length - 1);
+    picked.push(pool[idx]);
+    pool.splice(idx, 1);
+  }
+
+  return picked;
+}
+
+function buildGeneratedNodes(complexity: GraphComplexity) {
+  const intermediateCount = complexity === 'simple' ? randomInt(2, 3) : randomInt(4, 6);
+  const nodeIds = 'abcdefghijklmnopqrstuvwxyz'.split('').slice(0, intermediateCount);
+
+  return [
+    { data: { id: 's', label: 'S' }, classes: 'source' },
+    ...nodeIds.map((id) => ({ data: { id, label: id.toUpperCase() } })),
+    { data: { id: 't', label: 'T' }, classes: 'sink' },
+  ];
+}
+
+function generateGraphByComplexity(complexity: GraphComplexity): FlowNetworkGraph {
+  const nodes = buildGeneratedNodes(complexity);
+  const intermediateIds = nodes
+    .map((node) => node.data.id)
+    .filter((id) => id !== 's' && id !== 't');
+  const edgePairs = new Set<string>();
+  const capacityRange = complexity === 'simple' ? [4, 18] : [3, 30];
+  const edgeTargetCount = complexity === 'simple' ? randomInt(4, 7) : randomInt(8, 15);
+
+  const addEdge = (source: string, target: string) => {
+    if (source === target) return;
+    if (source === 't' || target === 's') return;
+    const key = `${source}->${target}`;
+    edgePairs.add(key);
+  };
+
+  const guaranteedPathLen = randomInt(1, Math.min(3, intermediateIds.length));
+  const guaranteedPathNodes = pickDistinctRandom(intermediateIds, guaranteedPathLen)
+    .sort((a, b) => intermediateIds.indexOf(a) - intermediateIds.indexOf(b));
+
+  if (guaranteedPathNodes.length > 0) {
+    addEdge('s', guaranteedPathNodes[0]);
+    for (let i = 0; i < guaranteedPathNodes.length - 1; i += 1) {
+      addEdge(guaranteedPathNodes[i], guaranteedPathNodes[i + 1]);
+    }
+    addEdge(guaranteedPathNodes[guaranteedPathNodes.length - 1], 't');
+  }
+
+  for (const id of intermediateIds) {
+    if (Math.random() < 0.8) addEdge('s', id);
+    if (Math.random() < 0.8) addEdge(id, 't');
+  }
+
+  for (let i = 0; i < intermediateIds.length; i += 1) {
+    for (let j = i + 1; j < intermediateIds.length; j += 1) {
+      if (Math.random() < (complexity === 'simple' ? 0.35 : 0.45)) {
+        addEdge(intermediateIds[i], intermediateIds[j]);
+      }
+      if (Math.random() < (complexity === 'simple' ? 0.1 : 0.2)) {
+        addEdge(intermediateIds[j], intermediateIds[i]);
+      }
+    }
+  }
+
+  const candidatePairs: Array<[string, string]> = [];
+  for (const from of ['s', ...intermediateIds]) {
+    for (const to of [...intermediateIds, 't']) {
+      if (from !== to && from !== 't' && to !== 's') {
+        candidatePairs.push([from, to]);
+      }
+    }
+  }
+
+  while (edgePairs.size < edgeTargetCount && candidatePairs.length > 0) {
+    const idx = randomInt(0, candidatePairs.length - 1);
+    const [from, to] = candidatePairs[idx];
+    addEdge(from, to);
+    candidatePairs.splice(idx, 1);
+  }
+
+  if (![...edgePairs].some((pair) => pair.startsWith('s->'))) {
+    addEdge('s', intermediateIds[0]);
+  }
+  if (![...edgePairs].some((pair) => pair.endsWith('->t'))) {
+    addEdge(intermediateIds[0], 't');
+  }
+
+  let edgeId = 1;
+  const edges = [...edgePairs].map((pair) => {
+    const [source, target] = pair.split('->');
+    const capacity = randomInt(capacityRange[0], capacityRange[1]);
+    return {
+      data: {
+        id: `e${edgeId++}`,
+        source,
+        target,
+        capacity,
+        flow: 0,
+        label: `0/${capacity}`,
+      },
+    };
+  });
+
+  return {
+    name: complexity === 'simple' ? 'Simple Flow Network' : 'Complex Flow Network',
+    nodes,
+    edges,
+    directed: true,
+    source: 's',
+    sink: 't',
+  };
+}
 
 export default function App() {
   const [appState, setAppState] = useState<AppState>('editing');
   const [selectedAlgorithm, setSelectedAlgorithm] = useState('ford-fulkerson');
-  const [selectedExample, setSelectedExample] = useState('simple');
-  const [isDirected, setIsDirected] = useState(true);
+  const [selectedComplexity, setSelectedComplexity] = useState<GraphComplexity>('simple');
   const [showResidual, setShowResidual] = useState(false);
-  const [showEdgeLabels, setShowEdgeLabels] = useState(true);
-  const [showNodeIds, setShowNodeIds] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [playbackSpeed, setPlaybackSpeed] = useState([1]);
-  const [autoPlay, setAutoPlay] = useState(false);
+  const [algorithmSteps, setAlgorithmSteps] = useState<MaxFlowAlgorithmStep[]>([]);
+  const [currentGraph, setCurrentGraph] = useState<FlowNetworkGraph>(() => generateGraphByComplexity('simple'));
 
   const cyRef = useRef<cytoscape.Core | null>(null);
+  const currentStepData = algorithmSteps[currentStep];
 
-  const currentGraph = exampleGraphs[selectedExample] ?? exampleGraphs.simple;
-  const currentStepData = mockAlgorithmSteps[currentStep];
+  const resetExecutionState = useCallback(() => {
+    setAppState('editing');
+    setCurrentStep(0);
+    setIsPlaying(false);
+    setShowResidual(false);
+    setAlgorithmSteps([]);
+  }, []);
 
   const editingElements = currentGraph.nodes.concat(currentGraph.edges);
   const normalGraphElements: GraphElement[] =
@@ -44,25 +170,37 @@ export default function App() {
   };
 
   const handleRun = () => {
+    const steps = emitFordFulkersonSteps(currentGraph);
+    setAlgorithmSteps(steps);
     setAppState('running');
     setCurrentStep(0);
     setIsPlaying(true);
   };
 
+  const handleComplexityChange = (value: string) => {
+    const next: GraphComplexity = value === 'complex' ? 'complex' : 'simple';
+    setSelectedComplexity(next);
+    setCurrentGraph(generateGraphByComplexity(next));
+    resetExecutionState();
+  };
+
+  const handleGenerateGraph = () => {
+    setCurrentGraph(generateGraphByComplexity(selectedComplexity));
+    resetExecutionState();
+  };
+
   const handleReset = () => {
-    setAppState('editing');
-    setCurrentStep(0);
-    setIsPlaying(false);
+    resetExecutionState();
   };
 
   const handleNext = useCallback(() => {
-    if (currentStep < mockAlgorithmSteps.length - 1) {
+    if (currentStep < algorithmSteps.length - 1) {
       setCurrentStep((prev) => prev + 1);
     } else {
       setAppState('finished');
       setIsPlaying(false);
     }
-  }, [currentStep]);
+  }, [currentStep, algorithmSteps.length]);
 
   const handleFinish = useCallback(() => {
     setAppState('finished');
@@ -79,7 +217,7 @@ export default function App() {
     isPlaying,
     appState,
     currentStep,
-    stepCount: mockAlgorithmSteps.length,
+    stepCount: algorithmSteps.length,
     playbackSpeed: playbackSpeed[0],
     onAdvance: handleNext,
     onFinish: handleFinish,
@@ -90,15 +228,15 @@ export default function App() {
       <HeaderBar
         selectedAlgorithm={selectedAlgorithm}
         onAlgorithmChange={setSelectedAlgorithm}
-        selectedExample={selectedExample}
-        onExampleChange={setSelectedExample}
+        selectedComplexity={selectedComplexity}
+        onComplexityChange={handleComplexityChange}
+        onGenerateGraph={handleGenerateGraph}
         onRun={handleRun}
         onReset={handleReset}
         runDisabled={appState === 'running' || appState === 'finished'}
       />
 
       <ThreePanelLayout
-        left={<GraphEditorPanel isDirected={isDirected} onDirectedChange={setIsDirected} currentGraph={currentGraph} />}
         center={
           <GraphCanvasPanel
             appState={appState}
@@ -106,10 +244,6 @@ export default function App() {
             residualElements={residualGraphElements}
             showResidual={showResidual}
             onShowResidualChange={setShowResidual}
-            showEdgeLabels={showEdgeLabels}
-            onShowEdgeLabelsChange={setShowEdgeLabels}
-            showNodeIds={showNodeIds}
-            onShowNodeIdsChange={setShowNodeIds}
             onReady={handleCyReady}
             onZoomIn={() => cyRef.current?.zoom(cyRef.current.zoom() * 1.2)}
             onZoomOut={() => cyRef.current?.zoom(cyRef.current.zoom() * 0.8)}
@@ -120,7 +254,7 @@ export default function App() {
           <StepInspectorPanel
             appState={appState}
             currentStepData={currentStepData}
-            totalSteps={mockAlgorithmSteps.length}
+            totalSteps={algorithmSteps.length}
           />
         }
       />
@@ -129,11 +263,9 @@ export default function App() {
         appState={appState}
         isPlaying={isPlaying}
         currentStep={currentStep}
-        totalSteps={mockAlgorithmSteps.length}
+        totalSteps={algorithmSteps.length}
         playbackSpeed={playbackSpeed}
         onPlaybackSpeedChange={setPlaybackSpeed}
-        autoPlay={autoPlay}
-        onAutoPlayChange={setAutoPlay}
         onPrevious={handlePrevious}
         onPlayPause={() => setIsPlaying((prev) => !prev)}
         onNext={handleNext}

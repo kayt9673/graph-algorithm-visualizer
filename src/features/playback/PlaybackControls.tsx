@@ -3,7 +3,6 @@ import type { AppState } from '../../core/graph/types';
 import { Button } from '../../app/components/ui/button';
 import { Label } from '../../app/components/ui/label';
 import { Slider } from '../../app/components/ui/slider';
-import { Switch } from '../../app/components/ui/switch';
 
 interface PlaybackControlsProps {
   appState: AppState;
@@ -12,8 +11,6 @@ interface PlaybackControlsProps {
   totalSteps: number;
   playbackSpeed: number[];
   onPlaybackSpeedChange: (value: number[]) => void;
-  autoPlay: boolean;
-  onAutoPlayChange: (value: boolean) => void;
   onPrevious: () => void;
   onPlayPause: () => void;
   onNext: () => void;
@@ -27,8 +24,6 @@ export function PlaybackControls({
   totalSteps,
   playbackSpeed,
   onPlaybackSpeedChange,
-  autoPlay,
-  onAutoPlayChange,
   onPrevious,
   onPlayPause,
   onNext,
@@ -59,11 +54,6 @@ export function PlaybackControls({
                 <Label htmlFor="speed" className="text-sm whitespace-nowrap">Speed</Label>
                 <div className="w-[100px] lg:w-[120px]"><Slider id="speed" value={playbackSpeed} onValueChange={onPlaybackSpeedChange} min={0.5} max={2} step={0.5} /></div>
                 <span className="text-sm text-muted-foreground w-8">{playbackSpeed[0]}x</span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Switch id="autoplay" checked={autoPlay} onCheckedChange={onAutoPlayChange} />
-                <Label htmlFor="autoplay" className="text-sm cursor-pointer">Auto-play</Label>
               </div>
             </div>
           </div>

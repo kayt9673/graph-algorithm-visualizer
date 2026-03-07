@@ -1,12 +1,71 @@
-import type { AlgorithmStep } from '../../../core/steps/types';
-import type { GraphEdge, GraphElement } from '../../../core/graph/types';
-import { exampleGraphs } from '../../../data/examples/exampleGraphs';
+import type { MaxFlowAlgorithmStep } from '../../steps/types';
+import type { FlowNetworkGraph, GraphEdge, GraphElement } from '../../graph/types';
+import type { MaxFlowGraph } from './MaxFlowGraph';
+import { runFordFulkerson } from './fordFulkerson';
 
+/**
+ * Determines how edges are visualized in the graph.
+ * `steady`: Normal display.
+ * `path`: Highlights the augmenting path and dims all other edges.
+ * `apply`: Highlights edges whose flow changed in the current step. 
+ */
+type FlowStepMode = 'steady' | 'path' | 'apply';
+
+/**
+ * Checks whether `element` is an edge.
+ */
 function isEdgeElement(element: GraphElement): element is GraphEdge {
   return 'source' in element.data && 'target' in element.data;
 }
 
-function buildResidualElements(elements: GraphElement[]): GraphElement[] {
+/**
+ * Combines optional CSS class tokens into one string. 
+ */
+function className(...names: Array<string | undefined>): string | undefined {
+  const merged = names.filter(Boolean).join(' ').trim();
+  return merged.length > 0 ? merged : undefined;
+}
+
+/**
+ * Returns a string version of the endpoints of `edge`, formatted as `u->v`.
+ */
+function edgePairId(edge: GraphEdge): string {
+  return `${edge.data.source}->${edge.data.target}`;
+}
+
+/**
+ * Builds a map (edgeID -> flowValue) of `elements`.
+ */
+function flowMapByEdgeId(elements: GraphElement[]): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const element of elements) {
+    if (!isEdgeElement(element)) continue;
+    map.set(element.data.id, element.data.flow ?? 0);
+  }
+  return map;
+}
+
+/**
+ * Returns the edge IDs whose flow value changed between `previous` and `next`. 
+ */
+function computeChangedEdgeIds(previous: GraphElement[], next: GraphElement[]): Set<string> {
+  const changed = new Set<string>();
+  const previousMap = flowMapByEdgeId(previous);
+
+  for (const element of next) {
+    if (!isEdgeElement(element)) continue;
+    const prev = previousMap.get(element.data.id) ?? 0;
+    const cur = element.data.flow ?? 0;
+    if (prev !== cur) changed.add(element.data.id);
+  }
+
+  return changed;
+}
+
+/**
+ * Returns the elements of the residual graph from `elements`. 
+ */
+export function buildResidualElementsFromElements(elements: GraphElement[]): GraphElement[] {
   const nodes = elements.filter((element) => !isEdgeElement(element));
   const edges = elements.filter(isEdgeElement);
   const residualEdges: GraphEdge[] = [];
@@ -48,81 +107,147 @@ function buildResidualElements(elements: GraphElement[]): GraphElement[] {
   return [...nodes, ...residualEdges];
 }
 
-const steps: AlgorithmStep[] = [
-  {
-    id: 0,
-    title: 'Initial State',
-    description:
-      'Starting Ford-Fulkerson algorithm. All edges have zero flow. We will find augmenting paths from source S to sink T.',
-    currentFlow: 0,
-    totalMaxFlow: 0,
-    elements: exampleGraphs.simple.nodes.concat(exampleGraphs.simple.edges),
-  },
-  {
-    id: 1,
-    title: 'Found Augmenting Path',
-    description:
-      'Found path S -> A -> T with bottleneck capacity 10. This is the minimum capacity along the path.',
-    currentFlow: 0,
-    bottleneck: 10,
-    path: ['s', 'a', 't'],
-    totalMaxFlow: 0,
-    elements: [
-      ...exampleGraphs.simple.nodes,
-      { data: { id: 'e1', source: 's', target: 'a', capacity: 10, flow: 0, label: '0/10' }, classes: 'augmenting' },
-      { data: { id: 'e2', source: 's', target: 'b', capacity: 5, flow: 0, label: '0/5' } },
-      { data: { id: 'e3', source: 'a', target: 't', capacity: 10, flow: 0, label: '0/10' }, classes: 'augmenting' },
-      { data: { id: 'e4', source: 'b', target: 't', capacity: 5, flow: 0, label: '0/5' } },
-    ],
-  },
-  {
-    id: 2,
-    title: 'Augment Flow',
-    description: 'Increased flow by 10 units along path S -> A -> T. Edges are now saturated.',
-    currentFlow: 10,
-    path: ['s', 'a', 't'],
-    totalMaxFlow: 10,
-    elements: [
-      ...exampleGraphs.simple.nodes,
-      { data: { id: 'e1', source: 's', target: 'a', capacity: 10, flow: 10, label: '10/10' }, classes: 'saturated' },
-      { data: { id: 'e2', source: 's', target: 'b', capacity: 5, flow: 0, label: '0/5' } },
-      { data: { id: 'e3', source: 'a', target: 't', capacity: 10, flow: 10, label: '10/10' }, classes: 'saturated' },
-      { data: { id: 'e4', source: 'b', target: 't', capacity: 5, flow: 0, label: '0/5' } },
-    ],
-  },
-  {
-    id: 3,
-    title: 'Found Another Path',
-    description: 'Found path S -> B -> T with bottleneck capacity 5.',
-    currentFlow: 10,
-    bottleneck: 5,
-    path: ['s', 'b', 't'],
-    totalMaxFlow: 10,
-    elements: [
-      ...exampleGraphs.simple.nodes,
-      { data: { id: 'e1', source: 's', target: 'a', capacity: 10, flow: 10, label: '10/10' }, classes: 'saturated' },
-      { data: { id: 'e2', source: 's', target: 'b', capacity: 5, flow: 0, label: '0/5' }, classes: 'augmenting' },
-      { data: { id: 'e3', source: 'a', target: 't', capacity: 10, flow: 10, label: '10/10' }, classes: 'saturated' },
-      { data: { id: 'e4', source: 'b', target: 't', capacity: 5, flow: 0, label: '0/5' }, classes: 'augmenting' },
-    ],
-  },
-  {
-    id: 4,
-    title: 'Maximum Flow Achieved',
-    description: 'No more augmenting paths exist. The maximum flow from S to T is 15 units.',
-    currentFlow: 15,
-    totalMaxFlow: 15,
-    elements: [
-      ...exampleGraphs.simple.nodes,
-      { data: { id: 'e1', source: 's', target: 'a', capacity: 10, flow: 10, label: '10/10' }, classes: 'saturated' },
-      { data: { id: 'e2', source: 's', target: 'b', capacity: 5, flow: 5, label: '5/5' }, classes: 'saturated' },
-      { data: { id: 'e3', source: 'a', target: 't', capacity: 10, flow: 10, label: '10/10' }, classes: 'saturated' },
-      { data: { id: 'e4', source: 'b', target: 't', capacity: 5, flow: 5, label: '5/5' }, classes: 'saturated' },
-    ],
-  },
-];
+/**
+ * Adds visualization classes to `elements` for the current step.
+ * `augmenting`: The edge is on the current augmenting path.
+ * `saturated`: The edge's flow value is equal to its capacity.
+ * `changed`: The edge's flow value changed from the previous step.
+ * `dim`: The edge is not on the current augmenting path. 
+ */
+function annotateFlowElements(
+  elements: GraphElement[],
+  path?: string[],
+  changedEdgeIds: Set<string> = new Set<string>(),
+  mode: FlowStepMode = 'steady',
+): GraphElement[] {
+  const pathEdges = new Set<string>();
+  if (path) {
+    for (let i = 0; i < path.length - 1; i += 1) {
+      pathEdges.add(`${path[i]}->${path[i + 1]}`);
+    }
+  }
 
-export const mockAlgorithmSteps: AlgorithmStep[] = steps.map((step) => ({
-  ...step,
-  residualElements: buildResidualElements(step.elements),
-}));
+  const nodes = elements.filter((element) => !isEdgeElement(element));
+  const edges = elements.filter(isEdgeElement).map((edge) => {
+    const inPath = pathEdges.has(edgePairId(edge));
+    const saturated = (edge.data.flow ?? 0) >= (edge.data.capacity ?? 0);
+    const dim = mode === 'path' && pathEdges.size > 0 && !inPath;
+
+    return {
+      ...edge,
+      classes: className(
+        edge.classes,
+        inPath ? 'augmenting' : undefined,
+        saturated ? 'saturated' : undefined,
+        changedEdgeIds.has(edge.data.id) ? 'changed' : undefined,
+        dim ? 'dim' : undefined,
+      ),
+    };
+  });
+
+  return nodes.concat(edges);
+}
+
+/**
+ * Converts `flowGraph` to a `GraphElement[]` with corresponding visualizations.
+ */
+function toFlowElements(
+  flowGraph: MaxFlowGraph,
+  path?: string[],
+  changedEdgeIds: Set<string> = new Set<string>(),
+  mode: FlowStepMode = 'steady',
+): GraphElement[] {
+  const graph = flowGraph.toExampleGraph();
+  return annotateFlowElements(graph.nodes.concat(graph.edges), path, changedEdgeIds, mode);
+}
+
+/**
+ * Converts `residualGraph` to a `GraphElement[]` with residual visualization. 
+ */
+function toResidualElements(residualGraph: MaxFlowGraph): GraphElement[] {
+  const graph = residualGraph.toExampleGraph();
+  const residualEdges = graph.edges.map((edge) => ({
+    ...edge,
+    data: {
+      ...edge.data,
+      label: `${edge.data.capacity ?? 0}`,
+    },
+    classes: className(edge.classes, 'residual'),
+  }));
+
+  return graph.nodes.concat(residualEdges);
+}
+
+/**
+ * Expands each `graph` snapshot into two UI steps:
+ * 1.) `Found Path`: Highlights the current augmenting path.
+ * 2.) `Apply Flow`: Identifies the bottleneck edge, then marks the edges that changed flow value, and 
+ * updates the residual graph. 
+ */
+export function emitFordFulkersonSteps(graph: FlowNetworkGraph): MaxFlowAlgorithmStep[] {
+  const result = runFordFulkerson(graph);
+  const initialElements = graph.nodes.concat(graph.edges);
+  const steps: MaxFlowAlgorithmStep[] = [
+    {
+      id: 0,
+      title: 'Initial State',
+      description: `Starting Ford-Fulkerson from ${graph.source.toUpperCase()} to ${graph.sink.toUpperCase()}.`,
+      currentFlow: 0,
+      totalMaxFlow: 0,
+      elements: annotateFlowElements(initialElements, undefined, new Set<string>(), 'steady'),
+      residualElements: buildResidualElementsFromElements(initialElements),
+    },
+  ];
+
+  let previousFlowElements = initialElements;
+  let previousTotalFlow = 0;
+
+  for (const snapshot of result.snapshots) {
+    const pathText = snapshot.path?.join(' -> ') ?? 'unknown';
+    const nextFlowElements = toFlowElements(snapshot.flowGraph);
+    const changedEdgeIds = computeChangedEdgeIds(previousFlowElements, nextFlowElements);
+
+    steps.push({
+      id: steps.length,
+      title: `Iteration ${snapshot.iteration}: Found Path`,
+      description: `Found augmenting path ${pathText}. Bottleneck is ${snapshot.bottleneck ?? 0}.`,
+      currentFlow: previousTotalFlow,
+      bottleneck: snapshot.bottleneck,
+      path: snapshot.path,
+      totalMaxFlow: previousTotalFlow,
+      elements: annotateFlowElements(previousFlowElements, snapshot.path, new Set<string>(), 'path'),
+      residualElements: buildResidualElementsFromElements(previousFlowElements),
+    });
+
+    steps.push({
+      id: steps.length,
+      title: `Iteration ${snapshot.iteration}: Apply Flow`,
+      description: `Applied +${snapshot.bottleneck ?? 0} flow on ${pathText}.`,
+      currentFlow: snapshot.totalFlow,
+      flowDelta: snapshot.totalFlow - previousTotalFlow,
+      bottleneck: snapshot.bottleneck,
+      path: snapshot.path,
+      totalMaxFlow: snapshot.totalFlow,
+      elements: annotateFlowElements(nextFlowElements, snapshot.path, changedEdgeIds, 'apply'),
+      residualElements: toResidualElements(snapshot.residualGraph),
+    });
+
+    previousFlowElements = nextFlowElements;
+    previousTotalFlow = snapshot.totalFlow;
+  }
+
+  const finalElements = annotateFlowElements(previousFlowElements);
+  const finalResidual = buildResidualElementsFromElements(finalElements);
+
+  steps.push({
+    id: steps.length,
+    title: 'Maximum Flow Achieved',
+    description: `No augmenting path remains. Maximum flow is ${result.maxFlow}.`,
+    currentFlow: result.maxFlow,
+    totalMaxFlow: result.maxFlow,
+    elements: finalElements,
+    residualElements: finalResidual,
+  });
+
+  return steps;
+}

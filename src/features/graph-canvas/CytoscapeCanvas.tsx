@@ -25,6 +25,47 @@ function getNodeTopologyKey(elements: GraphElement[]): string {
     .join('|');
 }
 
+function applyEdgeLabelLayout(cy: cytoscape.Core): void {
+  const groups = new Map<string, cytoscape.EdgeSingular[]>();
+
+  cy.edges().forEach((edge) => {
+    const source = edge.source().id();
+    const target = edge.target().id();
+    const key = source < target ? `${source}|${target}` : `${target}|${source}`;
+    const bucket = groups.get(key) ?? [];
+    bucket.push(edge);
+    groups.set(key, bucket);
+  });
+
+  groups.forEach((edges) => {
+    const forward: cytoscape.EdgeSingular[] = [];
+    const backward: cytoscape.EdgeSingular[] = [];
+
+    if (edges.length === 0) return;
+    const a = edges[0].source().id() < edges[0].target().id() ? edges[0].source().id() : edges[0].target().id();
+    const b = edges[0].source().id() < edges[0].target().id() ? edges[0].target().id() : edges[0].source().id();
+
+    edges.forEach((edge) => {
+      if (edge.source().id() === a && edge.target().id() === b) forward.push(edge);
+      else backward.push(edge);
+    });
+
+    const layoutOneDirection = (items: cytoscape.EdgeSingular[], sign: number) => {
+      items.forEach((edge, index) => {
+        const center = (items.length - 1) / 2;
+        const spread = (index - center) * 11;
+        const offsetY = sign * (12 + Math.abs(spread));
+        const offsetX = spread;
+        edge.style('text-margin-y', `${offsetY}px`);
+        edge.style('text-margin-x', `${offsetX}px`);
+      });
+    };
+
+    layoutOneDirection(forward, 1);
+    layoutOneDirection(backward, -1);
+  });
+}
+
 export function CytoscapeCanvas({
   elements,
   className = '',
@@ -50,6 +91,7 @@ export function CytoscapeCanvas({
 
     cyRef.current = cy;
     previousStructureKeyRef.current = getNodeTopologyKey(elements);
+    applyEdgeLabelLayout(cy);
     onReady?.(cy);
 
     return () => {
@@ -84,6 +126,7 @@ export function CytoscapeCanvas({
         cy.add(Array.from(nextById.values()) as any);
       }
     });
+    applyEdgeLabelLayout(cy);
 
     const nextStructureKey = getNodeTopologyKey(elements);
     const nodeTopologyChanged = nextStructureKey !== previousStructureKeyRef.current;

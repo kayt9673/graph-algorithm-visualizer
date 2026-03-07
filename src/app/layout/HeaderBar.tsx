@@ -1,4 +1,4 @@
-import { Play, RotateCcw } from 'lucide-react';
+import { Play, RefreshCw, RotateCcw } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
@@ -6,8 +6,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 interface HeaderBarProps {
   selectedAlgorithm: string;
   onAlgorithmChange: (value: string) => void;
-  selectedExample: string;
-  onExampleChange: (value: string) => void;
+  selectedComplexity: string;
+  onComplexityChange: (value: string) => void;
+  onGenerateGraph: () => void;
   onRun: () => void;
   onReset: () => void;
   runDisabled: boolean;
@@ -16,8 +17,9 @@ interface HeaderBarProps {
 export function HeaderBar({
   selectedAlgorithm,
   onAlgorithmChange,
-  selectedExample,
-  onExampleChange,
+  selectedComplexity,
+  onComplexityChange,
+  onGenerateGraph,
   onRun,
   onReset,
   runDisabled,
@@ -44,12 +46,12 @@ export function HeaderBar({
             </div>
 
             <div className="flex items-center gap-2 w-full sm:w-auto">
-              <Label htmlFor="example" className="text-sm whitespace-nowrap">Example</Label>
-              <Select value={selectedExample} onValueChange={onExampleChange}>
-                <SelectTrigger id="example" className="w-full sm:w-[180px]"><SelectValue /></SelectTrigger>
+              <Label htmlFor="complexity" className="text-sm whitespace-nowrap">Complexity</Label>
+              <Select value={selectedComplexity} onValueChange={onComplexityChange}>
+                <SelectTrigger id="complexity" className="w-full sm:w-[180px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="simple">Simple Flow Network</SelectItem>
-                  <SelectItem value="complex">Complex Flow Network</SelectItem>
+                  <SelectItem value="simple">Simple</SelectItem>
+                  <SelectItem value="complex">Complex</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -57,6 +59,10 @@ export function HeaderBar({
         </div>
 
         <div className="flex items-center gap-3 w-full lg:w-auto">
+          <Button onClick={onGenerateGraph} variant="outline" className="gap-2 flex-1 lg:flex-initial">
+            <RefreshCw className="h-4 w-4" />
+            Generate New Graph
+          </Button>
           <Button onClick={onRun} disabled={runDisabled} className="gap-2 flex-1 lg:flex-initial"><Play className="h-4 w-4" />Run</Button>
           <Button onClick={onReset} variant="outline" className="gap-2 flex-1 lg:flex-initial"><RotateCcw className="h-4 w-4" />Reset</Button>
         </div>

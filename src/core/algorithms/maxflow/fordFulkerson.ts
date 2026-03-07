@@ -15,6 +15,8 @@ export interface FordFulkersonSnapshot {
   path?: string[];
   /** The minimum residual capacity along `path`. */
   bottleneck?: number;
+  /** The flow graph after applying this augmentation. */
+  flowGraph: MaxFlowGraph;
   /** The residual graph during this snapshot. */
   residualGraph: MaxFlowGraph;
 }
@@ -124,7 +126,7 @@ function findPathBottleneck(residual: MaxFlowGraph, path: string[]): number {
     const v = path[i + 1];
     const edge = residual.edges.find((e) => e.source === u && e.target === v);
     if (!edge) {
-      throw new Error(`Residual edge missing for ${u} -> ${v}` path);
+      throw new Error(`Residual edge missing for ${u} -> ${v} path`);
     }
     bottleneck = Math.min(bottleneck, edge.capacity);
   }
@@ -150,7 +152,7 @@ function applyAugmentingPath(graph: MaxFlowGraph, path: string[], bottleneck: nu
 
     const backward = graph.edges.find((e) => e.source === v && e.target === u);
     if (!backward) {
-      throw new Error(`No matching graph edge for ${u} -> ${v}` path);
+      throw new Error(`No matching graph edge for ${u} -> ${v} path`);
     }
     backward.addFlow(-bottleneck);
   }
@@ -182,6 +184,7 @@ export function runFordFulkerson(graph: FlowNetworkGraph): FordFulkersonResult {
       totalFlow,
       path,
       bottleneck,
+      flowGraph: workingGraph.clone(),
       residualGraph: buildResidualGraph(workingGraph),
     });
   }

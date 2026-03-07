@@ -11,6 +11,9 @@ export const CYTOSCAPE_STYLE = [
       height: 40,
       'font-size': '14px',
       'font-weight': '500',
+      'transition-property': 'background-color, border-color, border-width',
+      'transition-duration': '220ms',
+      'transition-timing-function': 'ease-in-out',
     },
   },
   {
@@ -30,14 +33,6 @@ export const CYTOSCAPE_STYLE = [
     },
   },
   {
-    selector: 'node.active',
-    style: {
-      'background-color': '#f59e0b',
-      'border-width': 4,
-      'border-color': '#d97706',
-    },
-  },
-  {
     selector: 'edge',
     style: {
       width: 3,
@@ -46,10 +41,13 @@ export const CYTOSCAPE_STYLE = [
       'target-arrow-shape': 'triangle',
       'curve-style': 'bezier',
       label: 'data(label)',
+      'text-rotation': 'autorotate',
       'font-size': '12px',
-      'text-background-color': '#ffffff',
-      'text-background-opacity': 1,
-      'text-background-padding': '2px',
+      'text-outline-color': '#ffffff',
+      'text-outline-width': 2,
+      'transition-property': 'line-color, target-arrow-color, width, opacity',
+      'transition-duration': '260ms',
+      'transition-timing-function': 'ease-in-out',
     },
   },
   {
@@ -78,11 +76,17 @@ export const CYTOSCAPE_STYLE = [
     },
   },
   {
-    selector: 'edge.active',
+    selector: 'edge.changed',
     style: {
       'line-color': '#f59e0b',
       'target-arrow-color': '#f59e0b',
       width: 5,
+    },
+  },
+  {
+    selector: 'edge.dim',
+    style: {
+      opacity: 0.2,
     },
   },
 ] as const;
