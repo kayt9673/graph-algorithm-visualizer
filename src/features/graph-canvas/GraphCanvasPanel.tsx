@@ -102,11 +102,6 @@ export function GraphCanvasPanel({
 
   const handleResidualReady = (cy: cytoscape.Core) => {
     residualCyRef.current = cy;
-    if (shouldSyncResidualView) {
-      requestAnimationFrame(() => syncResidualPositionsWithRetry());
-      return;
-    }
-
     requestAnimationFrame(() => syncResidualPositionsWithRetry());
   };
 

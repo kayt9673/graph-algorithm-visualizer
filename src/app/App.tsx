@@ -162,7 +162,9 @@ export default function App() {
       : editingElements;
   const residualGraphElements: GraphElement[] =
     appState === 'running' || appState === 'finished'
-      ? currentStepData?.residualElements ?? []
+      ? currentStep === 0
+        ? []
+        : currentStepData?.residualElements ?? []
       : [];
 
   const handleCyReady = (cy: cytoscape.Core) => {

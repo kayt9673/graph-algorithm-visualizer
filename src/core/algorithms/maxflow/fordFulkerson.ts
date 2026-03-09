@@ -1,7 +1,6 @@
 import type { FlowNetworkGraph } from '../../graph/types';
 import { MaxFlowGraph } from './MaxFlowGraph';
 import { MaxFlowEdge } from './MaxFlowEdge';
-import { toMaxFlowGraph } from './types';
 
 /**
  * Snapshot captured after each successful augmentation.
@@ -163,7 +162,7 @@ function applyAugmentingPath(graph: MaxFlowGraph, path: string[], bottleneck: nu
  * Returns snapshots of each iteration, the final graph, and the max-flow value. 
  */
 export function runFordFulkerson(graph: FlowNetworkGraph): FordFulkersonResult {
-  const workingGraph = toMaxFlowGraph(graph);
+  const workingGraph = MaxFlowGraph.fromExampleGraph(graph);
   const snapshots: FordFulkersonSnapshot[] = [];
   let totalFlow = 0;
   let iteration = 0;

@@ -174,7 +174,7 @@ function annotateFlowElements(
     };
   });
 
-  return nodes.concat(edges);
+  return [...nodes, ...edges];
 }
 
 /**
@@ -187,7 +187,7 @@ function toFlowElements(
   mode: FlowStepMode = 'steady',
 ): GraphElement[] {
   const graph = flowGraph.toExampleGraph();
-  return annotateFlowElements(graph.nodes.concat(graph.edges), path, changedEdgeIds, mode);
+  return annotateFlowElements([...graph.nodes, ...graph.edges], path, changedEdgeIds, mode);
 }
 
 /**
@@ -198,12 +198,12 @@ function toFlowElements(
  */
 export function emitFordFulkersonSteps(graph: FlowNetworkGraph): MaxFlowAlgorithmStep[] {
   const result = runFordFulkerson(graph);
-  const initialElements = graph.nodes.concat(graph.edges);
+  const initialElements: GraphElement[] = [...graph.nodes, ...graph.edges];
   const steps: MaxFlowAlgorithmStep[] = [
     {
       id: 0,
       title: 'Initial State',
-      description: `Starting Ford-Fulkerson from ${graph.source.toUpperCase()} to ${graph.sink.toUpperCase()}.`,
+      description: `Starting Ford-Fulkerson from ${graph.source.toLowerCase()} to ${graph.sink.toLowerCase()}.`,
       currentFlow: 0,
       totalMaxFlow: 0,
       elements: annotateFlowElements(initialElements, undefined, new Set<string>(), 'steady'),

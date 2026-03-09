@@ -1,5 +1,5 @@
 import type { GraphModel, GraphNode } from './types';
-import { DirectedEdge, type DirectedEdgeInit } from './DirectedEdge';
+import { DirectedEdge } from './DirectedEdge';
 
 export interface DirectedGraphInit<TEdge extends DirectedEdge = DirectedEdge> {
   name: string;
@@ -25,27 +25,6 @@ export class DirectedGraph<TEdge extends DirectedEdge = DirectedEdge> {
   }
 
   /**
-   * Adds `edge` to this graph. 
-   */
-  addEdge(edge: TEdge): void {
-    this.edges.push(edge);
-  }
-
-  /**
-   * Returns all edges in this graph whose source node is `nodeId`.
-   */
-  getEdgesFrom(nodeId: string): TEdge[] {
-    return this.edges.filter((edge) => edge.source === nodeId);
-  }
-
-  /**
-   * Returns all edges in this graph whose target node is `nodeId`.
-   */
-  getEdgesTo(nodeId: string): TEdge[] {
-    return this.edges.filter((edge) => edge.target === nodeId);
-  }
-
-  /**
    * Converts this graph to a `GraphModel`.
    */
   toExampleGraph(): GraphModel {
@@ -57,25 +36,4 @@ export class DirectedGraph<TEdge extends DirectedEdge = DirectedEdge> {
     };
   }
 
-  /**
-   * Converts `graph` to a `DirectedGraph`.
-   */
-  static fromExampleGraph(graph: GraphModel): DirectedGraph {
-    const edges = graph.edges.map(
-      (edge) =>
-        new DirectedEdge({
-          id: edge.data.id,
-          source: edge.data.source,
-          target: edge.data.target,
-          label: edge.data.label,
-          classes: edge.classes,
-        } satisfies DirectedEdgeInit),
-    );
-
-    return new DirectedGraph({
-      name: graph.name,
-      nodes: graph.nodes,
-      edges,
-    });
-  }
 }

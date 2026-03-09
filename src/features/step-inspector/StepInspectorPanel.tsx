@@ -55,6 +55,40 @@ function getResidualChanges(step: MaxFlowAlgorithmStep): ResidualChange[] {
     .filter((change): change is ResidualChange => Boolean(change));
 }
 
+function renderStepDescription(step: MaxFlowAlgorithmStep): JSX.Element {
+  const description = step.description;
+  const pathText = step.path && step.path.length > 1 ? step.path.join(' -> ') : undefined;
+
+  if (pathText && description.includes(pathText)) {
+    const [before, ...afterParts] = description.split(pathText);
+    const after = afterParts.join(pathText);
+
+    return (
+      <>
+        {before}
+        <span className="font-mono font-medium text-foreground">{pathText}</span>
+        {after}
+      </>
+    );
+  }
+
+  const initialStateMatch = description.match(/^(.*from )([^ ]+)( to )([^.\s]+)(\..*)$/);
+  if (initialStateMatch) {
+    const [, before, source, middle, sink, after] = initialStateMatch;
+    return (
+      <>
+        {before}
+        <span className="font-mono font-medium text-foreground">{source.toLowerCase()}</span>
+        {middle}
+        <span className="font-mono font-medium text-foreground">{sink.toLowerCase()}</span>
+        {after}
+      </>
+    );
+  }
+
+  return <>{description}</>;
+}
+
 export function StepInspectorPanel({
   appState,
   currentStepData,
@@ -79,7 +113,7 @@ export function StepInspectorPanel({
                       {appState === 'finished' && <Badge className="bg-[#16a34a] text-white">Complete</Badge>}
                     </div>
                   <h4 className="mb-1 text-base">{currentStepData.title}</h4>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{currentStepData.description}</p>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{renderStepDescription(currentStepData)}</p>
                 </div>
 
                 <Separator />
@@ -101,7 +135,9 @@ export function StepInspectorPanel({
                         <div className="space-y-1.5 text-sm leading-snug">
                           {residualChanges.map((change) => (
                             <div key={change.edge} className="rounded-md border border-border/80 p-1.5">
-                              <div className="font-mono text-sm">{change.edge}</div>
+                              <div className="inline-flex items-center rounded-sm border border-primary/40 bg-primary/10 px-2 py-0.5 font-mono text-sm font-semibold tracking-tight text-primary">
+                                {change.edge}
+                              </div>
                               <ul className="mt-0.5 list-disc pl-4 text-muted-foreground space-y-0.5">
                                 <li>Capacity = {change.capacity}</li>
                                 <li>Flow = {change.flow}</li>
