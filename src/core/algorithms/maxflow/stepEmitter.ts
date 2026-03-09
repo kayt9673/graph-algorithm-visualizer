@@ -2,6 +2,7 @@ import type { MaxFlowAlgorithmStep } from '../../steps/types';
 import type { FlowNetworkGraph, GraphEdge, GraphElement } from '../../graph/types';
 import type { MaxFlowGraph } from './MaxFlowGraph';
 import { runFordFulkerson } from './fordFulkerson';
+import { className, isDirectedEdgeElement } from '../stepEmitterUtils';
 
 /**
  * Determines how edges are visualized in the graph.
@@ -11,21 +12,6 @@ import { runFordFulkerson } from './fordFulkerson';
  */
 type FlowStepMode = 'steady' | 'path' | 'apply';
 const FLOW_VISUAL_CLASSES = new Set(['augmenting', 'saturated', 'changed', 'dim']);
-
-/**
- * Checks whether `element` is an edge.
- */
-function isEdgeElement(element: GraphElement): element is GraphEdge {
-  return 'source' in element.data && 'target' in element.data;
-}
-
-/**
- * Combines optional CSS class tokens into one string. 
- */
-function className(...names: Array<string | undefined>): string | undefined {
-  const merged = names.filter(Boolean).join(' ').trim();
-  return merged.length > 0 ? merged : undefined;
-}
 
 /**
  * Removes step-specific visualization classes so each frame is derived from clean edge state.
@@ -52,7 +38,7 @@ function edgePairId(edge: GraphEdge): string {
 function flowMapByEdgeId(elements: GraphElement[]): Map<string, number> {
   const map = new Map<string, number>();
   for (const element of elements) {
-    if (!isEdgeElement(element)) continue;
+    if (!isDirectedEdgeElement(element)) continue;
     map.set(element.data.id, element.data.flow ?? 0);
   }
   return map;
@@ -66,7 +52,7 @@ function computeChangedEdgeIds(previous: GraphElement[], next: GraphElement[]): 
   const previousMap = flowMapByEdgeId(previous);
 
   for (const element of next) {
-    if (!isEdgeElement(element)) continue;
+    if (!isDirectedEdgeElement(element)) continue;
     const prev = previousMap.get(element.data.id) ?? 0;
     const cur = element.data.flow ?? 0;
     if (prev !== cur) changed.add(element.data.id);
@@ -79,8 +65,8 @@ function computeChangedEdgeIds(previous: GraphElement[], next: GraphElement[]): 
  * Returns the elements of the residual graph from `elements`. 
  */
 export function buildResidualElementsFromElements(elements: GraphElement[], path?: string[]): GraphElement[] {
-  const nodes = elements.filter((element) => !isEdgeElement(element));
-  const edges = elements.filter(isEdgeElement);
+  const nodes = elements.filter((element) => !isDirectedEdgeElement(element));
+  const edges = elements.filter(isDirectedEdgeElement);
   const residualEdges: GraphEdge[] = [];
   const pathPairs = new Set<string>();
 
@@ -156,8 +142,8 @@ function annotateFlowElements(
     }
   }
 
-  const nodes = elements.filter((element) => !isEdgeElement(element));
-  const edges = elements.filter(isEdgeElement).map((edge) => {
+  const nodes = elements.filter((element) => !isDirectedEdgeElement(element));
+  const edges = elements.filter(isDirectedEdgeElement).map((edge) => {
     const inPath = pathEdges.has(edgePairId(edge));
     const saturated = (edge.data.flow ?? 0) >= (edge.data.capacity ?? 0);
     const dim = mode === 'path' && pathEdges.size > 0 && !inPath;

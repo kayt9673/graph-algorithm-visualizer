@@ -9,6 +9,7 @@ import { CytoscapeCanvas } from './CytoscapeCanvas';
 
 interface GraphCanvasPanelProps {
   appState: AppState;
+  selectedAlgorithm: string;
   normalElements: GraphElement[];
   residualElements: GraphElement[];
   showResidual: boolean;
@@ -21,6 +22,7 @@ interface GraphCanvasPanelProps {
 
 export function GraphCanvasPanel({
   appState,
+  selectedAlgorithm,
   normalElements,
   residualElements,
   showResidual,
@@ -33,7 +35,8 @@ export function GraphCanvasPanel({
   const normalCyRef = useRef<cytoscape.Core | null>(null);
   const residualCyRef = useRef<cytoscape.Core | null>(null);
 
-  const showSplitView = showResidual;
+  const isFordFulkerson = selectedAlgorithm === 'ford-fulkerson';
+  const showSplitView = isFordFulkerson && showResidual;
   const shouldSyncResidualView = appState === 'running' || appState === 'finished';
 
   const syncResidualPositions = () => {
@@ -114,12 +117,14 @@ export function GraphCanvasPanel({
           <Button size="icon" variant="outline" onClick={onFit}><Maximize2 className="h-4 w-4" /></Button>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
-          <div className="flex items-center gap-2">
-            <Switch id="residual" checked={showResidual} onCheckedChange={onShowResidualChange} />
-            <Label htmlFor="residual" className="text-sm cursor-pointer whitespace-nowrap">Show Residual Graph</Label>
-          </div>
-        </div>
+          {isFordFulkerson && (
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
+              <div className="flex items-center gap-2">
+                <Switch id="residual" checked={showResidual} onCheckedChange={onShowResidualChange} />
+                <Label htmlFor="residual" className="text-sm cursor-pointer whitespace-nowrap">Show Residual Graph</Label>
+              </div>
+            </div>
+          )}
       </div>
 
       <div className="flex-1 relative p-4 lg:p-6 min-h-[400px]">
@@ -133,10 +138,20 @@ export function GraphCanvasPanel({
                 </div>
                 <div className="h-10 px-3 border-t border-border bg-card/80 flex flex-wrap items-center gap-3 text-xs">
                   <span className="font-medium">Legend:</span>
-                  <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#2563eb]" /><span>Normal</span></div>
-                  <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#16a34a]" /><span>Augmenting Path</span></div>
-                  <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#dc2626]" /><span>Saturated</span></div>
-                  <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#f59e0b]" /><span>Changed</span></div>
+                  {isFordFulkerson ? (
+                    <>
+                      <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#2563eb]" /><span>Normal</span></div>
+                      <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#16a34a]" /><span>Augmenting Path</span></div>
+                      <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#dc2626]" /><span>Saturated</span></div>
+                      <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#f59e0b]" /><span>Changed</span></div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-[#22c55e]" /><span>Current</span></div>
+                      <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-[#ef4444]" /><span>Settled</span></div>
+                      <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-[#f59e0b]" /><span>Frontier</span></div>
+                    </>
+                  )}
                 </div>
               </div>
                 <div className="min-h-0">
@@ -169,10 +184,21 @@ export function GraphCanvasPanel({
               </div>
               <div className="h-10 px-3 border-t border-border bg-card/80 flex flex-wrap items-center gap-3 text-xs">
                 <span className="font-medium">Legend:</span>
-                <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#2563eb]" /><span>Normal</span></div>
-                <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#16a34a]" /><span>Augmenting Path</span></div>
-                <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#dc2626]" /><span>Saturated</span></div>
-                <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#f59e0b]" /><span>Changed</span></div>
+                {isFordFulkerson ? (
+                  <>
+                    <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#2563eb]" /><span>Normal</span></div>
+                    <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#16a34a]" /><span>Augmenting Path</span></div>
+                    <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#dc2626]" /><span>Saturated</span></div>
+                    <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#f59e0b]" /><span>Changed</span></div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-[#64748b]" /><span>Unvisited</span></div>
+                    <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-[#22c55e]" /><span>Current</span></div>
+                    <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-[#ef4444]" /><span>Settled</span></div>
+                    <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-[#f59e0b]" /><span>Frontier</span></div>
+                  </>
+                )}
               </div>
             </div>
           )}

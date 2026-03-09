@@ -8,6 +8,9 @@ interface HeaderBarProps {
   onAlgorithmChange: (value: string) => void;
   selectedComplexity: string;
   onComplexityChange: (value: string) => void;
+  selectedSourceNode: string;
+  sourceNodeOptions: Array<{ id: string; label: string }>;
+  onSourceNodeChange: (value: string) => void;
   onGenerateGraph: () => void;
   onRun: () => void;
   onReset: () => void;
@@ -19,11 +22,16 @@ export function HeaderBar({
   onAlgorithmChange,
   selectedComplexity,
   onComplexityChange,
+  selectedSourceNode,
+  sourceNodeOptions,
+  onSourceNodeChange,
   onGenerateGraph,
   onRun,
   onReset,
   runDisabled,
 }: HeaderBarProps) {
+  const isFordFulkerson = selectedAlgorithm === 'ford-fulkerson';
+
   return (
     <header className="border-b border-border bg-card">
       <div className="px-4 lg:px-8 py-4 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 lg:gap-8">
@@ -37,24 +45,46 @@ export function HeaderBar({
                 <SelectTrigger id="algorithm" className="w-full sm:w-[220px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ford-fulkerson">Ford-Fulkerson (Max Flow)</SelectItem>
-                  <SelectItem value="dijkstra" disabled>Dijkstra (Coming Soon)</SelectItem>
-                  <SelectItem value="bellman-ford" disabled>Bellman-Ford (Coming Soon)</SelectItem>
-                  <SelectItem value="prim" disabled>Prim (Coming Soon)</SelectItem>
-                  <SelectItem value="kruskal" disabled>Kruskal (Coming Soon)</SelectItem>
+                  <SelectItem value="shortest-paths">Shortest Paths</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="flex items-center gap-2 w-full sm:w-auto">
-              <Label htmlFor="complexity" className="text-sm whitespace-nowrap">Complexity</Label>
+              <Label htmlFor="complexity" className="text-sm whitespace-nowrap">
+                {isFordFulkerson ? 'Complexity' : 'Shortest Path'}
+              </Label>
               <Select value={selectedComplexity} onValueChange={onComplexityChange}>
                 <SelectTrigger id="complexity" className="w-full sm:w-[180px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="simple">Simple</SelectItem>
-                  <SelectItem value="complex">Complex</SelectItem>
+                  {isFordFulkerson ? (
+                    <>
+                      <SelectItem value="simple">Simple</SelectItem>
+                      <SelectItem value="complex">Complex</SelectItem>
+                    </>
+                  ) : (
+                    <>
+                      <SelectItem value="bellman-ford" disabled>Bellman-Ford</SelectItem>
+                      <SelectItem value="dijkstra">Dijkstra's</SelectItem>
+                    </>
+                  )}
                 </SelectContent>
               </Select>
             </div>
+
+            {!isFordFulkerson && (
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Label htmlFor="source-node" className="text-sm whitespace-nowrap">Source</Label>
+                <Select value={selectedSourceNode} onValueChange={onSourceNodeChange}>
+                  <SelectTrigger id="source-node" className="w-full sm:w-[120px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {sourceNodeOptions.map((node) => (
+                      <SelectItem key={node.id} value={node.id}>{node.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
         </div>
 

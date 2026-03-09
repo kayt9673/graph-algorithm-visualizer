@@ -3,12 +3,13 @@ import { Badge } from '../../app/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../../app/components/ui/card';
 import { Separator } from '../../app/components/ui/separator';
 import type { AppState, GraphEdge, GraphElement } from '../../core/graph/types';
-import type { MaxFlowAlgorithmStep } from '../../core/steps/types';
+import type { MaxFlowAlgorithmStep, ShortestPathAlgorithmStep } from '../../core/steps/types';
 
 interface StepInspectorPanelProps {
   appState: AppState;
-  currentStepData?: MaxFlowAlgorithmStep;
+  currentStepData?: MaxFlowAlgorithmStep | ShortestPathAlgorithmStep;
   totalSteps: number;
+  selectedAlgorithm: string;
 }
 
 interface ResidualChange {
@@ -21,6 +22,10 @@ interface ResidualChange {
 
 function isEdgeElement(element: GraphElement): element is GraphEdge {
   return 'source' in element.data && 'target' in element.data;
+}
+
+function isShortestPathStep(step: MaxFlowAlgorithmStep | ShortestPathAlgorithmStep): step is ShortestPathAlgorithmStep {
+  return 'distances' in step && 'frontier' in step && 'discovered' in step;
 }
 
 function getResidualChanges(step: MaxFlowAlgorithmStep): ResidualChange[] {
@@ -55,131 +60,245 @@ function getResidualChanges(step: MaxFlowAlgorithmStep): ResidualChange[] {
     .filter((change): change is ResidualChange => Boolean(change));
 }
 
-function renderStepDescription(step: MaxFlowAlgorithmStep): JSX.Element {
-  const description = step.description;
-  const pathText = step.path && step.path.length > 1 ? step.path.join(' -> ') : undefined;
+function formatDistance(value: number): string {
+  return Number.isFinite(value) ? `${value}` : 'INF';
+}
 
-  if (pathText && description.includes(pathText)) {
-    const [before, ...afterParts] = description.split(pathText);
-    const after = afterParts.join(pathText);
+function renderNodeTokens(text: string): JSX.Element {
+  const parts = text.split(/(\[[^\]]+\])/g);
+  return (
+    <>
+      {parts.map((part, index) => {
+        if (part.startsWith('[') && part.endsWith(']')) {
+          const nodeId = part.slice(1, -1);
+          return (
+            <span key={`${nodeId}-${index}`} className="font-mono font-medium text-foreground">
+              {nodeId}
+            </span>
+          );
+        }
+        return <span key={`txt-${index}`}>{part}</span>;
+      })}
+    </>
+  );
+}
 
-    return (
-      <>
-        {before}
-        <span className="font-mono font-medium text-foreground">{pathText}</span>
-        {after}
-      </>
-    );
-  }
+function normalizeNodeReferences(text: string): string {
+  let normalized = text;
+  normalized = normalized.replace(/([A-Za-z0-9_]+)\s*->\s*([A-Za-z0-9_]+)/g, (_match, a, b) => {
+    return `[${String(a).toLowerCase()}] -> [${String(b).toLowerCase()}]`;
+  });
+  normalized = normalized.replace(/from\s+([A-Za-z0-9_]+)\s+to\s+([A-Za-z0-9_]+)/gi, (_match, a, b) => {
+    return `from [${String(a).toLowerCase()}] to [${String(b).toLowerCase()}]`;
+  });
+  return normalized;
+}
 
-  const initialStateMatch = description.match(/^(.*from )([^ ]+)( to )([^.\s]+)(\..*)$/);
-  if (initialStateMatch) {
-    const [, before, source, middle, sink, after] = initialStateMatch;
-    return (
-      <>
-        {before}
-        <span className="font-mono font-medium text-foreground">{source.toLowerCase()}</span>
-        {middle}
-        <span className="font-mono font-medium text-foreground">{sink.toLowerCase()}</span>
-        {after}
-      </>
-    );
-  }
+function renderMaxFlowDescription(text: string): JSX.Element {
+  return (
+    <p className="text-sm text-muted-foreground leading-relaxed">
+      {renderNodeTokens(normalizeNodeReferences(text))}
+    </p>
+  );
+}
 
-  return <>{description}</>;
+function renderShortestPathInspector(step: ShortestPathAlgorithmStep) {
+  const vertexOrder = Object.keys(step.distances);
+  const frontier = new Set(step.frontier);
+  const discovered = new Set(step.discovered);
+  const labelOf = (nodeId: string) => step.nodeLabels[nodeId] ?? nodeId;
+
+  const columnClass = (nodeId: string): string => {
+    if (step.current === nodeId) return 'bg-emerald-200/80';
+    if (discovered.has(nodeId)) return 'bg-rose-200/80';
+    if (frontier.has(nodeId)) return 'bg-amber-200/80';
+    return '';
+  };
+
+  return (
+    <>
+      <Separator />
+      <Card className="gap-1">
+        <CardHeader className="px-3 pt-2 pb-0">
+          <CardTitle className="text-base">Settled</CardTitle>
+        </CardHeader>
+        <CardContent className="px-3 pb-3 pt-1 overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <tbody>
+              <tr className="border-b border-border">
+                <th className="text-left font-medium py-1 pr-2">vertex</th>
+                {vertexOrder.map((v) => <td key={`vertex-${v}`} className={`py-1 px-2 font-mono ${columnClass(v)}`}>{labelOf(v)}</td>)}
+              </tr>
+              <tr className="border-b border-border">
+                <th className="text-left font-medium py-1 pr-2">distance</th>
+                {vertexOrder.map((v) => <td key={`dist-${v}`} className={`py-1 px-2 font-mono ${columnClass(v)}`}>{formatDistance(step.distances[v])}</td>)}
+              </tr>
+              <tr>
+                <th className="text-left font-medium py-1 pr-2">prev</th>
+                {vertexOrder.map((v) => <td key={`prev-${v}`} className={`py-1 px-2 font-mono ${columnClass(v)}`}>{step.previous[v] ?? 'null'}</td>)}
+              </tr>
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
+      <Card className="gap-1">
+        <CardHeader className="px-3 pt-2 pb-0">
+          <CardTitle className="text-base">Distance Changes</CardTitle>
+        </CardHeader>
+        <CardContent className="px-3 pb-3 pt-1">
+          {step.distanceChanges && step.distanceChanges.length > 0 ? (
+            <div className="space-y-1.5 text-sm leading-snug">
+              {step.distanceChanges.map((change, index) => (
+                <div key={`${change.from}-${change.to}-${index}`} className="rounded-md border border-border/80 p-1.5">
+                  <div className="inline-flex items-center rounded-sm border border-primary/40 bg-primary/10 px-2 py-0.5 font-mono text-sm font-semibold tracking-tight text-primary">
+                    {labelOf(change.from)} -&gt; {labelOf(change.to)}
+                  </div>
+                  <ul className="mt-0.5 list-disc pl-4 text-muted-foreground space-y-0.5">
+                    <li>
+                      <span className="font-mono text-foreground">dist({labelOf(change.from)})</span>
+                      {' + '}
+                      <span className="font-mono text-foreground">weight</span>
+                      {' = '}
+                      {formatDistance(change.baseDistance)}
+                      {' + '}
+                      {change.weight}
+                      {' = '}
+                      {formatDistance(change.candidate)}
+                      {' '}
+                      {change.updated ? '<' : '>='}
+                      {' '}
+                      <span className="font-mono text-foreground">dist({labelOf(change.to)})</span>
+                      {' = '}
+                      {formatDistance(change.previousDistance)}
+                    </li>
+                    <li>
+                      {change.updated ? (
+                        <>
+                          {'update '}
+                          <span className="font-mono text-foreground">dist({labelOf(change.to)})</span>
+                          {' = '}
+                          {formatDistance(change.nextDistance)}
+                          {' and '}
+                          <span className="font-mono text-foreground">prev({labelOf(change.to)})</span>
+                          {' = '}
+                          <span className="font-mono text-foreground">{labelOf(change.from)}</span>
+                        </>
+                      ) : (
+                        'no update'
+                      )}
+                    </li>
+                  </ul>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground">No distance changes.</div>
+          )}
+        </CardContent>
+      </Card>
+      <Card className="gap-1">
+        <CardHeader className="px-3 pt-2 pb-0">
+          <CardTitle className="text-base">Frontier</CardTitle>
+        </CardHeader>
+        <CardContent className="px-3 pb-3 pt-0">
+            <div className="text-base font-medium font-mono leading-snug">
+            {step.frontier.length > 0 ? step.frontier.map((nodeId) => labelOf(nodeId)).join('  ') : '(empty)'}
+          </div>
+        </CardContent>
+      </Card>
+    </>
+  );
+}
+
+function renderMaxFlowInspector(step: MaxFlowAlgorithmStep) {
+  const residualChanges = getResidualChanges(step);
+
+  return (
+    <>
+      <Separator />
+      <div className="space-y-1.5 min-h-0 flex-1">
+        <Card className="gap-1">
+          <CardHeader className="px-3 pt-2 pb-0"><CardTitle className="text-base">Augmenting Path</CardTitle></CardHeader>
+          <CardContent className="px-3 pb-3 pt-0">
+            <div className="text-base font-medium font-mono leading-snug">
+              {step.path ? step.path.join(' -> ') : 'No path in this step'}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="gap-1 min-h-0">
+          <CardHeader className="px-3 pt-2 pb-0"><CardTitle className="text-base">Residual Graph Changes</CardTitle></CardHeader>
+          <CardContent className="px-3 pb-2 pt-0 min-h-0 overflow-y-auto">
+            {residualChanges.length > 0 ? (
+              <div className="space-y-1.5 text-sm leading-snug">
+                {residualChanges.map((change) => (
+                  <div key={change.edge} className="rounded-md border border-border/80 p-1.5">
+                    <div className="inline-flex items-center rounded-sm border border-primary/40 bg-primary/10 px-2 py-0.5 font-mono text-sm font-semibold tracking-tight text-primary">
+                      {change.edge}
+                    </div>
+                    <ul className="mt-0.5 list-disc pl-4 text-muted-foreground space-y-0.5">
+                      <li>Capacity = {change.capacity}</li>
+                      <li>Flow = {change.flow}</li>
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-sm text-muted-foreground">No residual updates in this step.</div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="bg-primary text-primary-foreground gap-1">
+          <CardHeader className="px-3 pt-2 pb-0"><CardTitle className="text-base">Total Max Flow</CardTitle></CardHeader>
+          <CardContent className="px-3 pb-3 pt-0"><div className="text-lg font-medium">{step.totalMaxFlow ?? 0} units</div></CardContent>
+        </Card>
+      </div>
+    </>
+  );
 }
 
 export function StepInspectorPanel({
   appState,
   currentStepData,
   totalSteps,
+  selectedAlgorithm,
 }: StepInspectorPanelProps) {
-  const residualChanges = currentStepData ? getResidualChanges(currentStepData) : [];
-
   return (
     <div
       className="w-full lg:w-[380px] lg:basis-[380px] lg:flex-shrink-0 border-t lg:border-t-0 lg:border-l border-border bg-card overflow-y-auto"
       style={{ scrollbarGutter: 'stable' }}
     >
       <div className="h-full p-3 space-y-2 flex flex-col min-h-0">
-          <div className="min-h-0 flex flex-col">
-            <h3 className="mb-2 text-lg">Step Inspector</h3>
+        <div className="min-h-0 flex flex-col">
+          <h3 className="mb-2 text-lg">Step Inspector</h3>
 
-            {(appState === 'running' || appState === 'finished') && currentStepData ? (
-              <div className="space-y-2 min-h-0 flex flex-col">
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <Badge variant="outline">Step {currentStepData.id + 1} of {totalSteps}</Badge>
-                      {appState === 'finished' && <Badge className="bg-[#16a34a] text-white">Complete</Badge>}
-                    </div>
-                  <h4 className="mb-1 text-base">{currentStepData.title}</h4>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{renderStepDescription(currentStepData)}</p>
+          {(appState === 'running' || appState === 'finished') && currentStepData ? (
+            <div className="space-y-2 min-h-0 flex flex-col">
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <Badge variant="outline">Step {currentStepData.id + 1} of {totalSteps}</Badge>
+                  {appState === 'finished' && <Badge className="bg-[#16a34a] text-white">Complete</Badge>}
                 </div>
-
-                <Separator />
-
-                <div className="space-y-1.5 min-h-0 flex-1">
-                  <Card className="gap-1">
-                    <CardHeader className="px-3 pt-2 pb-0"><CardTitle className="text-base">Augmenting Path</CardTitle></CardHeader>
-                    <CardContent className="px-3 pb-3 pt-0">
-                      <div className="text-base font-medium font-mono leading-snug">
-                        {currentStepData.path ? currentStepData.path.join(' -> ') : 'No path in this step'}
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="gap-1 min-h-0">
-                    <CardHeader className="px-3 pt-2 pb-0"><CardTitle className="text-base">Residual Graph Changes</CardTitle></CardHeader>
-                    <CardContent className="px-3 pb-2 pt-0 min-h-0 overflow-y-auto">
-                      {residualChanges.length > 0 ? (
-                        <div className="space-y-1.5 text-sm leading-snug">
-                          {residualChanges.map((change) => (
-                            <div key={change.edge} className="rounded-md border border-border/80 p-1.5">
-                              <div className="inline-flex items-center rounded-sm border border-primary/40 bg-primary/10 px-2 py-0.5 font-mono text-sm font-semibold tracking-tight text-primary">
-                                {change.edge}
-                              </div>
-                              <ul className="mt-0.5 list-disc pl-4 text-muted-foreground space-y-0.5">
-                                <li>Capacity = {change.capacity}</li>
-                                <li>Flow = {change.flow}</li>
-                              </ul>
-                              <div className="mt-1 grid grid-cols-1 gap-1 md:grid-cols-2">
-                                <div className="rounded-sm border border-border/70 p-1">
-                                  <div className="font-medium text-sm">Forward Edge</div>
-                                  <div className="text-muted-foreground">
-                                    {change.forwardResidual > 0
-                                      ? `${change.capacity} - ${change.flow} = ${change.forwardResidual}`
-                                      : 'No forward edge'}
-                                  </div>
-                                </div>
-                                <div className="rounded-sm border border-border/70 p-1">
-                                  <div className="font-medium text-sm">Backward Edge</div>
-                                  <div className="text-muted-foreground">
-                                    {change.backwardResidual > 0 ? `${change.backwardResidual}` : 'No backward edge'}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-sm text-muted-foreground">No residual updates in this step.</div>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  <Card className="bg-primary text-primary-foreground gap-1">
-                    <CardHeader className="px-3 pt-2 pb-0"><CardTitle className="text-base">Total Max Flow</CardTitle></CardHeader>
-                    <CardContent className="px-3 pb-3 pt-0"><div className="text-lg font-medium">{currentStepData.totalMaxFlow ?? 0} units</div></CardContent>
-                  </Card>
-                </div>
+                <h4 className="mb-1 text-base">{currentStepData.title}</h4>
+                {selectedAlgorithm === 'shortest-paths' && isShortestPathStep(currentStepData) ? (
+                  <p className="text-sm text-muted-foreground leading-relaxed">{renderNodeTokens(currentStepData.description)}</p>
+                ) : (
+                  renderMaxFlowDescription(currentStepData.description)
+                )}
               </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <Settings className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                <p className="text-sm">Configure your graph and click Run to start visualization</p>
-              </div>
-            )}
-          </div>
+
+              {selectedAlgorithm === 'shortest-paths' && isShortestPathStep(currentStepData)
+                ? renderShortestPathInspector(currentStepData)
+                : renderMaxFlowInspector(currentStepData as MaxFlowAlgorithmStep)}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <Settings className="h-12 w-12 mx-auto mb-3 opacity-50" />
+              <p className="text-sm">Configure your graph and click Run to start visualization</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

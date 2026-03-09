@@ -1,17 +1,11 @@
 import type { FlowNetworkGraph } from '../../graph/types';
 import { MaxFlowGraph } from './MaxFlowGraph';
 import { MaxFlowEdge } from './MaxFlowEdge';
+import type { Snapshot } from '../../steps/types';
 
-/**
- * Snapshot captured after each successful augmentation.
- */
-export interface FordFulkersonSnapshot {
-  /** The iteration that the snapshot represents. */
-  iteration: number;
+export interface FordFulkersonSnapshot extends Snapshot {
   /** The total flow value from the source to the sink during this snapshot. */
   totalFlow: number;
-  /** A list of the nodes found in the s -> t augmenting path in the residual graph. */
-  path?: string[];
   /** The minimum residual capacity along `path`. */
   bottleneck?: number;
   /** The flow graph after applying this augmentation. */
@@ -158,7 +152,7 @@ function applyAugmentingPath(graph: MaxFlowGraph, path: string[], bottleneck: nu
 }
 
 /**
- * Runs the Ford-Fulkerson algorithm using the Edmonds-Karp implmementation.
+ * Runs the Ford-Fulkerson algorithm oh `graph` using the Edmonds-Karp implmementation.
  * Returns snapshots of each iteration, the final graph, and the max-flow value. 
  */
 export function runFordFulkerson(graph: FlowNetworkGraph): FordFulkersonResult {

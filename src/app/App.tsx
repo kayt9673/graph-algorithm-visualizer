@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type cytoscape from 'cytoscape';
 import { HeaderBar } from './layout/HeaderBar';
 import { ThreePanelLayout } from './layout/ThreePanelLayout';
@@ -7,10 +7,12 @@ import { StepInspectorPanel } from '../features/step-inspector/StepInspectorPane
 import { PlaybackControls } from '../features/playback/PlaybackControls';
 import { usePlayback } from '../features/playback/usePlayback';
 import { emitFordFulkersonSteps } from '../core/algorithms/maxflow/stepEmitter';
-import type { MaxFlowAlgorithmStep } from '../core/steps/types';
-import type { AppState, FlowNetworkGraph, GraphElement } from '../core/graph/types';
+import { emitDijkstraSteps } from '../core/algorithms/shortest-path';
+import type { MaxFlowAlgorithmStep, ShortestPathAlgorithmStep } from '../core/steps/types';
+import type { AppState, FlowNetworkGraph, GraphElement, ShortestPathGraph } from '../core/graph/types';
 
 type GraphComplexity = 'simple' | 'complex';
+type ShortestPathChoice = 'bellman-ford' | 'dijkstra';
 
 function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -38,6 +40,12 @@ function buildGeneratedNodes(complexity: GraphComplexity) {
     ...nodeIds.map((id) => ({ data: { id, label: id.toUpperCase() } })),
     { data: { id: 't', label: 'T' }, classes: 'sink' },
   ];
+}
+
+function labelForIndex(index: number): string {
+  const alphabet = 'abcdefghijklmnopqrstuvwxyz';
+  if (index < alphabet.length) return alphabet[index];
+  return `n${index + 1}`;
 }
 
 function generateGraphByComplexity(complexity: GraphComplexity): FlowNetworkGraph {
@@ -137,15 +145,53 @@ export default function App() {
   const [appState, setAppState] = useState<AppState>('editing');
   const [selectedAlgorithm, setSelectedAlgorithm] = useState('ford-fulkerson');
   const [selectedComplexity, setSelectedComplexity] = useState<GraphComplexity>('simple');
+  const [selectedShortestPath, setSelectedShortestPath] = useState<ShortestPathChoice>('dijkstra');
+  const [selectedSourceNode, setSelectedSourceNode] = useState('s');
   const [showResidual, setShowResidual] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [playbackSpeed, setPlaybackSpeed] = useState([1]);
-  const [algorithmSteps, setAlgorithmSteps] = useState<MaxFlowAlgorithmStep[]>([]);
+  const [algorithmSteps, setAlgorithmSteps] = useState<Array<MaxFlowAlgorithmStep | ShortestPathAlgorithmStep>>([]);
   const [currentGraph, setCurrentGraph] = useState<FlowNetworkGraph>(() => generateGraphByComplexity('simple'));
 
   const cyRef = useRef<cytoscape.Core | null>(null);
   const currentStepData = algorithmSteps[currentStep];
+
+  const toShortestPathGraph = (graph: FlowNetworkGraph): ShortestPathGraph => ({
+    name: graph.name,
+    nodes: graph.nodes.map((node, index) => ({
+      ...node,
+      data: {
+        ...node.data,
+        label: labelForIndex(index),
+      },
+      classes: undefined,
+    })),
+    edges: graph.edges.map((edge) => ({
+      ...edge,
+      classes: undefined,
+      data: {
+        ...edge.data,
+        weight: edge.data.capacity ?? 1,
+        label: `${edge.data.capacity ?? 1}`,
+      },
+    })),
+    directed: true,
+    source: selectedSourceNode,
+  });
+
+  const shortestPathGraph = toShortestPathGraph(currentGraph);
+  const sourceNodeOptions = shortestPathGraph.nodes.map((node) => ({
+    id: node.data.id,
+    label: node.data.label,
+  }));
+
+  useEffect(() => {
+    const sourceIds = sourceNodeOptions.map((node) => node.id);
+    if (!sourceIds.includes(selectedSourceNode)) {
+      setSelectedSourceNode(sourceIds[0] ?? 's');
+    }
+  }, [selectedSourceNode, sourceNodeOptions]);
 
   const resetExecutionState = useCallback(() => {
     setAppState('editing');
@@ -155,16 +201,22 @@ export default function App() {
     setAlgorithmSteps([]);
   }, []);
 
-  const editingElements = currentGraph.nodes.concat(currentGraph.edges);
+  const editingElements = selectedAlgorithm === 'ford-fulkerson'
+    ? currentGraph.nodes.concat(currentGraph.edges)
+    : shortestPathGraph.nodes.concat(shortestPathGraph.edges);
   const normalGraphElements: GraphElement[] =
     appState === 'running' || appState === 'finished'
       ? currentStepData?.elements ?? []
       : editingElements;
+  const currentResidualElements =
+    currentStepData && 'residualElements' in currentStepData
+      ? currentStepData.residualElements
+      : undefined;
   const residualGraphElements: GraphElement[] =
     appState === 'running' || appState === 'finished'
       ? currentStep === 0
         ? []
-        : currentStepData?.residualElements ?? []
+        : currentResidualElements ?? []
       : [];
 
   const handleCyReady = (cy: cytoscape.Core) => {
@@ -172,7 +224,9 @@ export default function App() {
   };
 
   const handleRun = () => {
-    const steps = emitFordFulkersonSteps(currentGraph);
+    const steps = selectedAlgorithm === 'ford-fulkerson'
+      ? emitFordFulkersonSteps(currentGraph)
+      : emitDijkstraSteps(shortestPathGraph, selectedSourceNode);
     setAlgorithmSteps(steps);
     setAppState('running');
     setCurrentStep(0);
@@ -180,14 +234,20 @@ export default function App() {
   };
 
   const handleComplexityChange = (value: string) => {
-    const next: GraphComplexity = value === 'complex' ? 'complex' : 'simple';
-    setSelectedComplexity(next);
-    setCurrentGraph(generateGraphByComplexity(next));
+    if (selectedAlgorithm === 'ford-fulkerson') {
+      const next: GraphComplexity = value === 'complex' ? 'complex' : 'simple';
+      setSelectedComplexity(next);
+    } else {
+      const next: ShortestPathChoice = value === 'dijkstra' ? 'dijkstra' : 'bellman-ford';
+      setSelectedShortestPath(next);
+    }
     resetExecutionState();
   };
 
   const handleGenerateGraph = () => {
-    setCurrentGraph(generateGraphByComplexity(selectedComplexity));
+    const next = generateGraphByComplexity('simple');
+    setCurrentGraph(next);
+    setSelectedSourceNode(next.source);
     resetExecutionState();
   };
 
@@ -229,9 +289,15 @@ export default function App() {
     <div className="h-screen bg-background flex flex-col overflow-hidden">
       <HeaderBar
         selectedAlgorithm={selectedAlgorithm}
-        onAlgorithmChange={setSelectedAlgorithm}
-        selectedComplexity={selectedComplexity}
+        onAlgorithmChange={(value) => {
+          setSelectedAlgorithm(value);
+          resetExecutionState();
+        }}
+        selectedComplexity={selectedAlgorithm === 'ford-fulkerson' ? selectedComplexity : selectedShortestPath}
         onComplexityChange={handleComplexityChange}
+        selectedSourceNode={selectedSourceNode}
+        sourceNodeOptions={sourceNodeOptions}
+        onSourceNodeChange={setSelectedSourceNode}
         onGenerateGraph={handleGenerateGraph}
         onRun={handleRun}
         onReset={handleReset}
@@ -242,6 +308,7 @@ export default function App() {
         center={
           <GraphCanvasPanel
             appState={appState}
+            selectedAlgorithm={selectedAlgorithm}
             normalElements={normalGraphElements}
             residualElements={residualGraphElements}
             showResidual={showResidual}
@@ -257,6 +324,7 @@ export default function App() {
             appState={appState}
             currentStepData={currentStepData}
             totalSteps={algorithmSteps.length}
+            selectedAlgorithm={selectedAlgorithm}
           />
         }
       />
@@ -266,6 +334,7 @@ export default function App() {
         isPlaying={isPlaying}
         currentStep={currentStep}
         totalSteps={algorithmSteps.length}
+        onStart={handleRun}
         playbackSpeed={playbackSpeed}
         onPlaybackSpeedChange={setPlaybackSpeed}
         onPrevious={handlePrevious}

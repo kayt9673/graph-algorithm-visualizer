@@ -33,6 +33,38 @@ export const CYTOSCAPE_STYLE = [
     },
   },
   {
+    selector: 'node.sp-node',
+    style: {
+      'background-color': '#64748b',
+      'border-width': 2,
+      'border-color': '#475569',
+    },
+  },
+  {
+    selector: 'node.sp-frontier',
+    style: {
+      'background-color': '#f59e0b',
+      'border-width': 3,
+      'border-color': '#d97706',
+    },
+  },
+  {
+    selector: 'node.sp-discovered',
+    style: {
+      'background-color': '#ef4444',
+      'border-width': 3,
+      'border-color': '#b91c1c',
+    },
+  },
+  {
+    selector: 'node.sp-current',
+    style: {
+      'background-color': '#22c55e',
+      'border-width': 4,
+      'border-color': '#15803d',
+    },
+  },
+  {
     selector: 'edge',
     style: {
       width: 3,
@@ -115,6 +147,14 @@ export const CYTOSCAPE_STYLE = [
     selector: 'edge.dim',
     style: {
       opacity: 0.2,
+    },
+  },
+  {
+    selector: 'edge.sp-tree',
+    style: {
+      'line-color': '#16a34a',
+      'target-arrow-color': '#16a34a',
+      width: 4,
     },
   },
 ] as const;
