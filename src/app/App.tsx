@@ -36,9 +36,9 @@ function buildGeneratedNodes(complexity: GraphComplexity) {
   const nodeIds = 'abcdefghijklmnopqrstuvwxyz'.split('').slice(0, intermediateCount);
 
   return [
-    { data: { id: 's', label: 'S' }, classes: 'source' },
-    ...nodeIds.map((id) => ({ data: { id, label: id.toUpperCase() } })),
-    { data: { id: 't', label: 'T' }, classes: 'sink' },
+    { data: { id: 's', label: 's' }, classes: 'source' },
+    ...nodeIds.map((id) => ({ data: { id, label: id } })),
+    { data: { id: 't', label: 't' }, classes: 'sink' },
   ];
 }
 
@@ -291,6 +291,11 @@ export default function App() {
         selectedAlgorithm={selectedAlgorithm}
         onAlgorithmChange={(value) => {
           setSelectedAlgorithm(value);
+          if (value === 'ford-fulkerson') {
+            const next = generateGraphByComplexity(selectedComplexity);
+            setCurrentGraph(next);
+            setSelectedSourceNode(next.source);
+          }
           resetExecutionState();
         }}
         selectedComplexity={selectedAlgorithm === 'ford-fulkerson' ? selectedComplexity : selectedShortestPath}
