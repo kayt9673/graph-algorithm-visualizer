@@ -26,6 +26,7 @@ export interface MaxFlowAlgorithmStep extends AlgorithmStep {
  * Visualizes one step in a shortest-path algorithm.
  */
 export interface ShortestPathAlgorithmStep extends AlgorithmStep {
+  shortestPathAlgorithm: 'dijkstra' | 'bellman-ford';
   source: string;
   nodeLabels: Record<string, string>;
   current: string | null;

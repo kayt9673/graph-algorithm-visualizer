@@ -64,7 +64,7 @@ export function HeaderBar({
                     </>
                   ) : (
                     <>
-                      <SelectItem value="bellman-ford" disabled>Bellman-Ford</SelectItem>
+                      <SelectItem value="bellman-ford">Bellman-Ford</SelectItem>
                       <SelectItem value="dijkstra">Dijkstra's</SelectItem>
                     </>
                   )}

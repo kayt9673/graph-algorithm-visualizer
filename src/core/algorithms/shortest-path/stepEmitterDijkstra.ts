@@ -1,7 +1,8 @@
-import type { GraphElement, ShortestPathGraph } from '../../graph/types';
+import type { ShortestPathGraph } from '../../graph/types';
 import type { ShortestPathAlgorithmStep } from '../../steps/types';
 import { runDijkstra } from './dijkstra';
-import { className, labelOfNode, nodeLabelToken } from '../stepEmitterUtils';
+import { labelOfNode, nodeLabelToken } from '../stepEmitterUtils';
+import { buildNodeLabelMap, buildShortestPathElementsForStep } from './stepEmitterCommon';
 
 /**
  * Returns the high-level step description for `snapshot`.
@@ -68,55 +69,6 @@ function buildDistanceChanges(
 }
 
 /**
- * Adds shortest-path visualization classes to `graph` for one `step`.
- */
-function buildElementsForSnapshot(graph: ShortestPathGraph, step: ShortestPathAlgorithmStep): GraphElement[] {
-  const frontierSet = new Set(step.frontier);
-  const discoveredSet = new Set(step.discovered);
-  const current = step.current;
-
-  const nodes = graph.nodes.map((node) => {
-    const nodeId = node.data.id;
-    const isCurrent = current === nodeId;
-    const inDiscovered = discoveredSet.has(nodeId);
-    const inFrontier = frontierSet.has(nodeId);
-
-    return {
-      ...node,
-      classes: className(
-        'sp-node',
-        inFrontier ? 'sp-frontier' : undefined,
-        inDiscovered ? 'sp-discovered' : undefined,
-        isCurrent ? 'sp-current' : undefined,
-      ),
-    };
-  });
-
-  const treePairs = new Set<string>();
-  for (const [nodeId, prev] of Object.entries(step.previous)) {
-    if (!prev) continue;
-    treePairs.add(`${prev}->${nodeId}`);
-  }
-
-  const edges = graph.edges.map((edge) => {
-    const pair = `${edge.data.source}->${edge.data.target}`;
-    return {
-      ...edge,
-      data: {
-        ...edge.data,
-        label: `${edge.data.weight}`,
-      },
-      classes: className(
-        edge.classes,
-        treePairs.has(pair) ? 'sp-tree' : undefined,
-      ),
-    };
-  });
-
-  return [...nodes, ...edges];
-}
-
-/**
  * Expands each Dijkstra snapshot into one UI step:
  * 1.) `Initial State` or `Iteration k`: Captures settled/frontier nodes and distance changes.
  * 2.) `Done`: Appends a final completed state.
@@ -124,7 +76,7 @@ function buildElementsForSnapshot(graph: ShortestPathGraph, step: ShortestPathAl
 export function emitDijkstraSteps(graph: ShortestPathGraph, source: string): ShortestPathAlgorithmStep[] {
   const result = runDijkstra(graph, source);
   const steps: ShortestPathAlgorithmStep[] = [];
-  const nodeLabels = Object.fromEntries(graph.nodes.map((node) => [node.data.id, node.data.label]));
+  const nodeLabels = buildNodeLabelMap(graph);
 
   for (let i = 0; i < result.snapshots.length; i += 1) {
     const snapshot = result.snapshots[i];
@@ -137,6 +89,7 @@ export function emitDijkstraSteps(graph: ShortestPathGraph, source: string): Sho
       id: i,
       title,
       description: '',
+      shortestPathAlgorithm: 'dijkstra',
       source: snapshot.source,
       nodeLabels,
       current: snapshot.current,
@@ -151,7 +104,7 @@ export function emitDijkstraSteps(graph: ShortestPathGraph, source: string): Sho
     currentStep.description = buildIterationDescription(source, currentStep, prev);
     currentStep.distanceChanges = buildDistanceChanges(graph, currentStep, prev);
     currentStep.id = steps.length;
-    currentStep.elements = buildElementsForSnapshot(graph, currentStep);
+    currentStep.elements = buildShortestPathElementsForStep(graph, currentStep);
     steps.push(currentStep);
   }
 

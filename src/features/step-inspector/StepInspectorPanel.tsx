@@ -103,10 +103,31 @@ function renderMaxFlowDescription(text: string): JSX.Element {
 }
 
 function renderShortestPathInspector(step: ShortestPathAlgorithmStep) {
+  const isBellmanFord = step.shortestPathAlgorithm === 'bellman-ford';
   const vertexOrder = Object.keys(step.distances);
   const frontier = new Set(step.frontier);
   const discovered = new Set(step.discovered);
   const labelOf = (nodeId: string) => step.nodeLabels[nodeId] ?? nodeId;
+  const isDoneStep = step.title === 'Done';
+
+  const buildPathTo = (target: string): string[] | null => {
+    if (!Number.isFinite(step.distances[target])) return null;
+
+    const path: string[] = [];
+    const seen = new Set<string>();
+    let current: string | null = target;
+
+    while (current) {
+      if (seen.has(current)) return null;
+      seen.add(current);
+      path.push(current);
+      if (current === step.source) break;
+      current = step.previous[current] ?? null;
+    }
+
+    if (path[path.length - 1] !== step.source) return null;
+    return path.reverse();
+  };
 
   const columnClass = (nodeId: string): string => {
     if (step.current === nodeId) return 'bg-emerald-200/80';
@@ -120,7 +141,7 @@ function renderShortestPathInspector(step: ShortestPathAlgorithmStep) {
       <Separator />
       <Card className="gap-1">
         <CardHeader className="px-3 pt-2 pb-0">
-          <CardTitle className="text-base">Settled</CardTitle>
+          <CardTitle className="text-base">{isBellmanFord ? 'Distance Table' : 'Settled'}</CardTitle>
         </CardHeader>
         <CardContent className="px-3 pb-3 pt-1 overflow-x-auto">
           <table className="w-full text-sm border-collapse">
@@ -141,71 +162,107 @@ function renderShortestPathInspector(step: ShortestPathAlgorithmStep) {
           </table>
         </CardContent>
       </Card>
-      <Card className="gap-1">
-        <CardHeader className="px-3 pt-2 pb-0">
-          <CardTitle className="text-base">Distance Changes</CardTitle>
-        </CardHeader>
-        <CardContent className="px-3 pb-3 pt-1">
-          {step.distanceChanges && step.distanceChanges.length > 0 ? (
-            <div className="space-y-1.5 text-sm leading-snug">
-              {step.distanceChanges.map((change, index) => (
-                <div key={`${change.from}-${change.to}-${index}`} className="rounded-md border border-border/80 p-1.5">
-                  <div className="inline-flex items-center rounded-sm border border-primary/40 bg-primary/10 px-2 py-0.5 font-mono text-sm font-semibold tracking-tight text-primary">
-                    {labelOf(change.from)} -&gt; {labelOf(change.to)}
+      {!isDoneStep && (
+        <Card className="gap-1">
+          <CardHeader className="px-3 pt-2 pb-0">
+            <CardTitle className="text-base">Distance Changes</CardTitle>
+          </CardHeader>
+          <CardContent className="px-3 pb-3 pt-1">
+            {step.distanceChanges && step.distanceChanges.length > 0 ? (
+              <div className="space-y-1.5 text-sm leading-snug">
+                {step.distanceChanges.map((change, index) => (
+                  <div key={`${change.from}-${change.to}-${index}`} className="rounded-md border border-border/80 p-1.5">
+                    <div className="inline-flex items-center rounded-sm border border-primary/40 bg-primary/10 px-2 py-0.5 font-mono text-sm font-semibold tracking-tight text-primary">
+                      {labelOf(change.from)} -&gt; {labelOf(change.to)}
+                    </div>
+                    <ul className="mt-0.5 list-disc pl-4 text-muted-foreground space-y-0.5">
+                      <li>
+                        <span className="font-mono text-foreground">dist({labelOf(change.from)})</span>
+                        {' + '}
+                        <span className="font-mono text-foreground">weight</span>
+                        {' = '}
+                        {formatDistance(change.baseDistance)}
+                        {' + '}
+                        {change.weight}
+                        {' = '}
+                        {formatDistance(change.candidate)}
+                        {' '}
+                        {change.updated ? '<' : '>='}
+                        {' '}
+                        <span className="font-mono text-foreground">dist({labelOf(change.to)})</span>
+                        {' = '}
+                        {formatDistance(change.previousDistance)}
+                      </li>
+                      <li>
+                        {change.updated ? (
+                          <>
+                            {'update '}
+                            <span className="font-mono text-foreground">dist({labelOf(change.to)})</span>
+                            {' = '}
+                            {formatDistance(change.nextDistance)}
+                            {' and '}
+                            <span className="font-mono text-foreground">prev({labelOf(change.to)})</span>
+                            {' = '}
+                            <span className="font-mono text-foreground">{labelOf(change.from)}</span>
+                          </>
+                        ) : (
+                          'no update'
+                        )}
+                      </li>
+                    </ul>
                   </div>
-                  <ul className="mt-0.5 list-disc pl-4 text-muted-foreground space-y-0.5">
-                    <li>
-                      <span className="font-mono text-foreground">dist({labelOf(change.from)})</span>
-                      {' + '}
-                      <span className="font-mono text-foreground">weight</span>
-                      {' = '}
-                      {formatDistance(change.baseDistance)}
-                      {' + '}
-                      {change.weight}
-                      {' = '}
-                      {formatDistance(change.candidate)}
-                      {' '}
-                      {change.updated ? '<' : '>='}
-                      {' '}
-                      <span className="font-mono text-foreground">dist({labelOf(change.to)})</span>
-                      {' = '}
-                      {formatDistance(change.previousDistance)}
-                    </li>
-                    <li>
-                      {change.updated ? (
-                        <>
-                          {'update '}
-                          <span className="font-mono text-foreground">dist({labelOf(change.to)})</span>
-                          {' = '}
-                          {formatDistance(change.nextDistance)}
-                          {' and '}
-                          <span className="font-mono text-foreground">prev({labelOf(change.to)})</span>
-                          {' = '}
-                          <span className="font-mono text-foreground">{labelOf(change.from)}</span>
-                        </>
-                      ) : (
-                        'no update'
-                      )}
-                    </li>
-                  </ul>
-                </div>
-              ))}
+                ))}
+              </div>
+            ) : (
+              <div className="text-sm text-muted-foreground">No distance changes.</div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+      {!isBellmanFord && !isDoneStep && (
+        <Card className="gap-1">
+          <CardHeader className="px-3 pt-2 pb-0">
+            <CardTitle className="text-base">Frontier</CardTitle>
+          </CardHeader>
+          <CardContent className="px-3 pb-3 pt-0">
+              <div className="text-base font-medium font-mono leading-snug">
+              {step.frontier.length > 0 ? step.frontier.map((nodeId) => labelOf(nodeId)).join('  ') : '(empty)'}
             </div>
-          ) : (
-            <div className="text-sm text-muted-foreground">No distance changes.</div>
-          )}
-        </CardContent>
-      </Card>
-      <Card className="gap-1">
-        <CardHeader className="px-3 pt-2 pb-0">
-          <CardTitle className="text-base">Frontier</CardTitle>
-        </CardHeader>
-        <CardContent className="px-3 pb-3 pt-0">
-            <div className="text-base font-medium font-mono leading-snug">
-            {step.frontier.length > 0 ? step.frontier.map((nodeId) => labelOf(nodeId)).join('  ') : '(empty)'}
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
+      {isDoneStep && (
+        <Card className="gap-1">
+          <CardHeader className="px-3 pt-2 pb-0">
+            <CardTitle className="text-base">Final Shortest Paths</CardTitle>
+          </CardHeader>
+          <CardContent className="px-3 pb-3 pt-1">
+            <div className="space-y-1.5 text-sm leading-snug">
+              {vertexOrder.map((nodeId) => {
+                const path = buildPathTo(nodeId);
+                const distance = step.distances[nodeId];
+                return (
+                  <div key={`final-path-${nodeId}`} className="rounded-md border border-border/80 p-1.5">
+                    <div className="font-mono text-foreground">{labelOf(step.source)} -&gt; {labelOf(nodeId)}</div>
+                    <div className="text-muted-foreground">
+                      <span className="text-foreground">Path</span>
+                      {': '}
+                      <span className="font-mono text-foreground">
+                        {path ? path.map((id) => labelOf(id)).join(' -> ') : 'unreachable'}
+                      </span>
+                    </div>
+                    <div className="text-muted-foreground">
+                      <span className="text-foreground">Distance</span>
+                      {': '}
+                      <span className="font-mono text-foreground">{formatDistance(distance)}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </>
   );
 }

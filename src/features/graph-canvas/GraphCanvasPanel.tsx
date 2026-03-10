@@ -10,6 +10,7 @@ import { CytoscapeCanvas } from './CytoscapeCanvas';
 interface GraphCanvasPanelProps {
   appState: AppState;
   selectedAlgorithm: string;
+  selectedShortestPath?: 'dijkstra' | 'bellman-ford';
   normalElements: GraphElement[];
   residualElements: GraphElement[];
   showResidual: boolean;
@@ -23,6 +24,7 @@ interface GraphCanvasPanelProps {
 export function GraphCanvasPanel({
   appState,
   selectedAlgorithm,
+  selectedShortestPath,
   normalElements,
   residualElements,
   showResidual,
@@ -36,6 +38,7 @@ export function GraphCanvasPanel({
   const residualCyRef = useRef<cytoscape.Core | null>(null);
 
   const isFordFulkerson = selectedAlgorithm === 'ford-fulkerson';
+  const isBellmanFord = selectedAlgorithm === 'shortest-paths' && selectedShortestPath === 'bellman-ford';
   const showSplitView = isFordFulkerson && showResidual;
   const shouldSyncResidualView = appState === 'running' || appState === 'finished';
 
@@ -193,10 +196,18 @@ export function GraphCanvasPanel({
                   </>
                 ) : (
                   <>
-                    <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-[#64748b]" /><span>Unvisited</span></div>
-                    <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-[#22c55e]" /><span>Current</span></div>
-                    <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-[#ef4444]" /><span>Settled</span></div>
-                    <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-[#f59e0b]" /><span>Frontier</span></div>
+                    {isBellmanFord ? (
+                      <>
+                        <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#22c55e]" /><span>Checked Edge</span></div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-[#64748b]" /><span>Unvisited</span></div>
+                        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-[#22c55e]" /><span>Current</span></div>
+                        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-[#ef4444]" /><span>Settled</span></div>
+                        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-[#f59e0b]" /><span>Frontier</span></div>
+                      </>
+                    )}
                   </>
                 )}
               </div>

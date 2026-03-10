@@ -157,6 +157,45 @@ export const CYTOSCAPE_STYLE = [
       width: 4,
     },
   },
+  {
+    selector: 'edge.sp-inspecting',
+    style: {
+      'line-color': '#22c55e',
+      'target-arrow-color': '#22c55e',
+      width: 5,
+      opacity: 1,
+      'line-opacity': 1,
+      'target-arrow-opacity': 1,
+      'text-opacity': 1,
+    },
+  },
+  {
+    selector: 'edge.sp-bf',
+    style: {
+      opacity: 0.7,
+      'line-opacity': 0.7,
+      'target-arrow-opacity': 0.7,
+      'text-opacity': 0.8,
+    },
+  },
+  {
+    selector: 'edge.sp-dim',
+    style: {
+      opacity: 0.55,
+      'line-opacity': 0.55,
+      'target-arrow-opacity': 0.55,
+      'text-opacity': 0.75,
+    },
+  },
+  {
+    selector: 'edge.sp-bf.sp-inspecting',
+    style: {
+      opacity: 1,
+      'line-opacity': 1,
+      'target-arrow-opacity': 1,
+      'text-opacity': 1,
+    },
+  },
 ] as const;
 
 export const CYTOSCAPE_LAYOUT = {

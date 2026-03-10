@@ -7,7 +7,7 @@ import { StepInspectorPanel } from '../features/step-inspector/StepInspectorPane
 import { PlaybackControls } from '../features/playback/PlaybackControls';
 import { usePlayback } from '../features/playback/usePlayback';
 import { emitFordFulkersonSteps } from '../core/algorithms/maxflow/stepEmitter';
-import { emitDijkstraSteps } from '../core/algorithms/shortest-path';
+import { emitBellmanFordSteps, emitDijkstraSteps } from '../core/algorithms/shortest-path';
 import type { MaxFlowAlgorithmStep, ShortestPathAlgorithmStep } from '../core/steps/types';
 import type { AppState, FlowNetworkGraph, GraphElement, ShortestPathGraph } from '../core/graph/types';
 
@@ -46,6 +46,41 @@ function labelForIndex(index: number): string {
   const alphabet = 'abcdefghijklmnopqrstuvwxyz';
   if (index < alphabet.length) return alphabet[index];
   return `n${index + 1}`;
+}
+
+function buildBellmanFordWeightMap(graph: FlowNetworkGraph): Map<string, number> {
+  const weights = new Map<string, number>();
+
+  for (const edge of graph.edges) {
+    const capacity = edge.data.capacity ?? 1;
+    const derived = (capacity % 19) - 6; // [-6, 12]
+    weights.set(edge.data.id, derived);
+  }
+
+  if (![...weights.values()].some((weight) => weight < 0)) {
+    const firstEdge = graph.edges[0];
+    if (firstEdge) {
+      weights.set(firstEdge.data.id, -3);
+    }
+  }
+
+  const pairToId = new Map<string, string>();
+  for (const edge of graph.edges) {
+    pairToId.set(`${edge.data.source}->${edge.data.target}`, edge.data.id);
+  }
+
+  // Some generated graphs can contain a negative cycle; we create one when a two-edge cycle exists.
+  for (const edge of graph.edges) {
+    const reverseId = pairToId.get(`${edge.data.target}->${edge.data.source}`);
+    if (!reverseId) continue;
+    if ((graph.edges.length + edge.data.id.length) % 2 !== 0) break;
+
+    weights.set(edge.data.id, -4);
+    weights.set(reverseId, -3);
+    break;
+  }
+
+  return weights;
 }
 
 function generateGraphByComplexity(complexity: GraphComplexity): FlowNetworkGraph {
@@ -157,7 +192,10 @@ export default function App() {
   const cyRef = useRef<cytoscape.Core | null>(null);
   const currentStepData = algorithmSteps[currentStep];
 
-  const toShortestPathGraph = (graph: FlowNetworkGraph): ShortestPathGraph => ({
+  const toShortestPathGraph = (graph: FlowNetworkGraph): ShortestPathGraph => {
+    const bellmanFordWeights = buildBellmanFordWeightMap(graph);
+
+    return ({
     name: graph.name,
     nodes: graph.nodes.map((node, index) => ({
       ...node,
@@ -172,13 +210,18 @@ export default function App() {
       classes: undefined,
       data: {
         ...edge.data,
-        weight: edge.data.capacity ?? 1,
-        label: `${edge.data.capacity ?? 1}`,
+        weight: selectedShortestPath === 'bellman-ford'
+          ? (bellmanFordWeights.get(edge.data.id) ?? edge.data.capacity ?? 1)
+          : (edge.data.capacity ?? 1),
+        label: selectedShortestPath === 'bellman-ford'
+          ? `${bellmanFordWeights.get(edge.data.id) ?? edge.data.capacity ?? 1}`
+          : `${edge.data.capacity ?? 1}`,
       },
     })),
     directed: true,
     source: selectedSourceNode,
   });
+  };
 
   const shortestPathGraph = toShortestPathGraph(currentGraph);
   const sourceNodeOptions = shortestPathGraph.nodes.map((node) => ({
@@ -226,7 +269,9 @@ export default function App() {
   const handleRun = () => {
     const steps = selectedAlgorithm === 'ford-fulkerson'
       ? emitFordFulkersonSteps(currentGraph)
-      : emitDijkstraSteps(shortestPathGraph, selectedSourceNode);
+      : selectedShortestPath === 'bellman-ford'
+        ? emitBellmanFordSteps(shortestPathGraph, selectedSourceNode)
+        : emitDijkstraSteps(shortestPathGraph, selectedSourceNode);
     setAlgorithmSteps(steps);
     setAppState('running');
     setCurrentStep(0);
@@ -314,6 +359,7 @@ export default function App() {
           <GraphCanvasPanel
             appState={appState}
             selectedAlgorithm={selectedAlgorithm}
+            selectedShortestPath={selectedShortestPath}
             normalElements={normalGraphElements}
             residualElements={residualGraphElements}
             showResidual={showResidual}

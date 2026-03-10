@@ -1,26 +1,52 @@
 import { MinPriorityQueue } from '@datastructures-js/priority-queue';
 import type { ShortestPathGraph } from '../../graph/types';
-import type { Snapshot } from '../../steps/types';
-import { getIncidentEdges } from '../../graph/utils';
+import type { BellmanFordSnapshot } from './bellmanFord';
+import { getIncidentEdges, containsNode } from '../../graph/utils';
 
-export interface DijkstraSnapshot extends Snapshot {
-  /** The source node. */
-  source: string;
+export interface DijkstraSnapshot extends BellmanFordSnapshot {
+  /** The current node that is being processed. */
   current: string | null;
   /** The nodes currently in the frontier. */
   frontier: string[];
   /** The nodes that are settled (i.e. their shortest distance is final) */
   discovered: string[];
-  /** A map of the node IDs to their current shortest distance. */
-  distances: Record<string, number>;
-  /** A map of the node IDs to their backpointer (if any). */
-  previous: Record<string, string | null>;
 }
 
 export interface ShortestPathResult {
-  snapshots: DijkstraSnapshot[];
+  snapshots: DijkstraSnapshot[] | BellmanFordSnapshot[];
   distances: Record<string, number>;
   previous: Record<string, string | null>;
+}
+
+/**
+ * Pushes a shortest-path snapshot while cloning mutable map/array fields.
+ */
+export function pushSnapshot(
+  snapshots: Array<BellmanFordSnapshot | DijkstraSnapshot>,
+  snapshot: BellmanFordSnapshot | DijkstraSnapshot,
+): void {
+  snapshots.push({
+    ...snapshot,
+    distances: { ...snapshot.distances },
+    previous: { ...snapshot.previous },
+    ...('frontier' in snapshot ? { frontier: [...snapshot.frontier] } : {}),
+    ...('discovered' in snapshot ? { discovered: [...snapshot.discovered] } : {}),
+  });
+}
+
+/**
+ * Initializes the starting distances of all nodes in `graph` to infinity and their
+ * backpointer to `null`.
+ */
+export function initPath(
+  graph: ShortestPathGraph, 
+  distances: Record<string, number>, 
+  previous: Record<string, string | null>
+) {
+  for (const node of graph.nodes) {
+      distances[node.data.id] = Number.POSITIVE_INFINITY;
+      previous[node.data.id] = null;
+    }
 }
 
 /**
@@ -28,20 +54,13 @@ export interface ShortestPathResult {
  * Returns snapshots of each iteration, the final distances from `source`, and backpointers. 
  */
 export function runDijkstra(graph: ShortestPathGraph, source: string): ShortestPathResult {
-  const hasSource = graph.nodes.some((node) => node.data.id === source);
-  if (!hasSource) {
-    throw new Error(`Source node "${source}" not found in graph.`);
-  }
+  containsNode(graph, source);
 
   const snapshots: DijkstraSnapshot[] = [];
   const distances: Record<string, number> = {};
   const previous: Record<string, string | null> = {};
 
-  // Initialize all distances to infinity 
-  for (const node of graph.nodes) {
-    distances[node.data.id] = Number.POSITIVE_INFINITY;
-    previous[node.data.id] = null;
-  }
+  initPath(graph, distances, previous);
   distances[source] = 0;
 
   let iteration = 0;
@@ -51,20 +70,15 @@ export function runDijkstra(graph: ShortestPathGraph, source: string): ShortestP
   });
   frontier.enqueue({ node: source, dist: 0 });
 
-  // Helper to push each snapshot 
-  const pushSnapshot = (current: string | null) => {
-    snapshots.push({
-      iteration,
-      source,
-      current,
-      frontier: frontier.toArray().map((item) => item.node),
-      discovered: [...discovered],
-      distances: { ...distances },
-      previous: { ...previous },
-    });
-  };
-
-  pushSnapshot(source);
+  pushSnapshot(snapshots, {
+    iteration,
+    source,
+    current: source,
+    frontier: frontier.toArray().map((item) => item.node),
+    discovered: [...discovered],
+    distances,
+    previous,
+  });
 
   while(!frontier.isEmpty()) {
     const cur = frontier.dequeue();
@@ -94,7 +108,15 @@ export function runDijkstra(graph: ShortestPathGraph, source: string): ShortestP
     }
 
     iteration += 1;
-    pushSnapshot(u);
+    pushSnapshot(snapshots, {
+      iteration,
+      source,
+      current: u,
+      frontier: frontier.toArray().map((item) => item.node),
+      discovered: [...discovered],
+      distances,
+      previous,
+    });
   }
 
   return {
