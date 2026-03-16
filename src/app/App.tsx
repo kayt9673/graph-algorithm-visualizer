@@ -6,13 +6,16 @@ import { GraphCanvasPanel } from '../features/graph-canvas/GraphCanvasPanel';
 import { StepInspectorPanel } from '../features/step-inspector/StepInspectorPanel';
 import { PlaybackControls } from '../features/playback/PlaybackControls';
 import { usePlayback } from '../features/playback/usePlayback';
-import { emitFordFulkersonSteps } from '../core/algorithms/maxflow/stepEmitter';
+import { emitFordFulkersonSteps } from '../core/algorithms/maxflow';
 import { emitBellmanFordSteps, emitDijkstraSteps } from '../core/algorithms/shortest-path';
 import type { MaxFlowAlgorithmStep, ShortestPathAlgorithmStep } from '../core/steps/types';
 import type { AppState, FlowNetworkGraph, GraphElement, ShortestPathGraph } from '../core/graph/types';
 
 type GraphComplexity = 'simple' | 'complex';
 type ShortestPathChoice = 'bellman-ford' | 'dijkstra';
+interface GraphGenerationOptions {
+  preferCycles?: boolean;
+}
 
 function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -69,21 +72,25 @@ function buildBellmanFordWeightMap(graph: FlowNetworkGraph): Map<string, number>
     pairToId.set(`${edge.data.source}->${edge.data.target}`, edge.data.id);
   }
 
-  // Some generated graphs can contain a negative cycle; we create one when a two-edge cycle exists.
+  // If a two-edge directed cycle exists, frequently make it negative for Bellman-Ford demos.
+  const reversePairs: Array<[string, string]> = [];
   for (const edge of graph.edges) {
     const reverseId = pairToId.get(`${edge.data.target}->${edge.data.source}`);
     if (!reverseId) continue;
-    if ((graph.edges.length + edge.data.id.length) % 2 !== 0) break;
+    reversePairs.push([edge.data.id, reverseId]);
+  }
 
-    weights.set(edge.data.id, -4);
+  if (reversePairs.length > 0 && Math.random() < 0.75) {
+    const [edgeId, reverseId] = reversePairs[randomInt(0, reversePairs.length - 1)];
+    weights.set(edgeId, -4);
     weights.set(reverseId, -3);
-    break;
   }
 
   return weights;
 }
 
-function generateGraphByComplexity(complexity: GraphComplexity): FlowNetworkGraph {
+function generateGraphByComplexity(complexity: GraphComplexity, options: GraphGenerationOptions = {}): FlowNetworkGraph {
+  const preferCycles = Boolean(options.preferCycles);
   const nodes = buildGeneratedNodes(complexity);
   const intermediateIds = nodes
     .map((node) => node.data.id)
@@ -118,13 +125,22 @@ function generateGraphByComplexity(complexity: GraphComplexity): FlowNetworkGrap
 
   for (let i = 0; i < intermediateIds.length; i += 1) {
     for (let j = i + 1; j < intermediateIds.length; j += 1) {
-      if (Math.random() < (complexity === 'simple' ? 0.2 : 0.3)) {
+      if (Math.random() < (preferCycles ? (complexity === 'simple' ? 0.3 : 0.4) : (complexity === 'simple' ? 0.2 : 0.3))) {
         addEdge(intermediateIds[i], intermediateIds[j]);
       }
-      if (Math.random() < (complexity === 'simple' ? 0.05 : 0.12)) {
+      if (Math.random() < (preferCycles ? (complexity === 'simple' ? 0.18 : 0.28) : (complexity === 'simple' ? 0.05 : 0.12))) {
         addEdge(intermediateIds[j], intermediateIds[i]);
       }
     }
+  }
+
+  // For Bellman-Ford demos, often enforce at least one directed cycle among intermediate nodes.
+  if (preferCycles && intermediateIds.length >= 2 && Math.random() < 0.7) {
+    const first = intermediateIds[randomInt(0, intermediateIds.length - 1)];
+    const rest = intermediateIds.filter((id) => id !== first);
+    const second = rest[randomInt(0, rest.length - 1)];
+    addEdge(first, second);
+    addEdge(second, first);
   }
 
   const candidatePairs: Array<[string, string]> = [];
@@ -290,7 +306,9 @@ export default function App() {
   };
 
   const handleGenerateGraph = () => {
-    const next = generateGraphByComplexity('simple');
+    const next = generateGraphByComplexity('simple', {
+      preferCycles: selectedAlgorithm === 'shortest-paths' && selectedShortestPath === 'bellman-ford',
+    });
     setCurrentGraph(next);
     setSelectedSourceNode(next.source);
     resetExecutionState();

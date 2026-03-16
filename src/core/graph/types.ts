@@ -90,3 +90,10 @@ export interface WeightedDirectedEdge extends DirectedGraphEdge {
 export interface ShortestPathGraph extends GraphModel<WeightedDirectedEdge> {
   source: string;
 }
+
+/**
+ * A connected graph for running MST algorithms. 
+ */
+export interface MSTGraph extends GraphModel<UndirectedGraphEdge> {
+  source?: string;
+}

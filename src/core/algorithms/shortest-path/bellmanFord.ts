@@ -1,8 +1,7 @@
 import type { ShortestPathGraph } from '../../graph/types';
-import type { ShortestPathResult } from './dijkstra';
 import type { Snapshot } from '../../steps/types';
 import { containsNode } from '../../graph/utils';
-import { initPath, pushSnapshot } from './dijkstra';
+import { initPath, pushSnapshot, type ShortestPathResult } from './utils';
 
 export interface BellmanFordSnapshot extends Snapshot {
   /** The source node. */
@@ -19,9 +18,9 @@ export interface BellmanFordSnapshot extends Snapshot {
   previous: Record<string, string | null>;
 }
 
-export interface BellmanFordResult extends ShortestPathResult {
-  snapshots: BellmanFordSnapshot[];
+export interface BellmanFordResult extends ShortestPathResult<BellmanFordSnapshot> {
   hasNegativeCycle: boolean;
+  negativeCycleNodes: string[];
 }
 
 /**
@@ -85,8 +84,9 @@ export function runBellmanFord(graph: ShortestPathGraph, source: string): Bellma
     pass += 1;
   }
 
-  // Check for negative cycles
+  // Check for negative cycles and extract one cycle (if present).
   let hasNegativeCycle = false;
+  let cycleSeed: string | null = null;
 
   for (const edge of graph.edges) {
     const u = edge.data.source;
@@ -94,12 +94,45 @@ export function runBellmanFord(graph: ShortestPathGraph, source: string): Bellma
     const weight = edge.data.weight;
     if (distances[u] !== Number.POSITIVE_INFINITY && distances[u] + weight < distances[v]) {
       hasNegativeCycle = true;
+      cycleSeed = v;
       break;
+    }
+  }
+
+  const negativeCycleNodes: string[] = [];
+  if (hasNegativeCycle && cycleSeed) {
+    let x: string | null = cycleSeed;
+
+    // Move inside the cycle.
+    for (let i = 0; i < graph.nodes.length; i += 1) {
+      if (!x) break;
+      x = previous[x];
+    }
+
+    if (x) {
+      const cycle: string[] = [];
+      const seen = new Set<string>();
+      let cur: string | null = x;
+
+      while (cur && !seen.has(cur)) {
+        seen.add(cur);
+        cycle.push(cur);
+        cur = previous[cur];
+      }
+
+      if (cur) {
+        const startIdx = cycle.indexOf(cur);
+        if (startIdx >= 0) {
+          const core = cycle.slice(startIdx).reverse();
+          negativeCycleNodes.push(...core, core[0]);
+        }
+      }
     }
   }
 
   return {
     hasNegativeCycle,
+    negativeCycleNodes,
     snapshots,
     distances,
     previous,

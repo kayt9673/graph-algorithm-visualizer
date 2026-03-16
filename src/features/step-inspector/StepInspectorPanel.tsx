@@ -109,6 +109,8 @@ function renderShortestPathInspector(step: ShortestPathAlgorithmStep) {
   const discovered = new Set(step.discovered);
   const labelOf = (nodeId: string) => step.nodeLabels[nodeId] ?? nodeId;
   const isDoneStep = step.title === 'Done';
+  const hasNegativeCycle = Boolean(step.hasNegativeCycle);
+  const negativeCycleNodes = step.negativeCycleNodes ?? [];
 
   const buildPathTo = (target: string): string[] | null => {
     if (!Number.isFinite(step.distances[target])) return null;
@@ -156,7 +158,14 @@ function renderShortestPathInspector(step: ShortestPathAlgorithmStep) {
               </tr>
               <tr>
                 <th className="text-left font-medium py-1 pr-2">prev</th>
-                {vertexOrder.map((v) => <td key={`prev-${v}`} className={`py-1 px-2 font-mono ${columnClass(v)}`}>{step.previous[v] ?? 'null'}</td>)}
+                {vertexOrder.map((v) => {
+                  const predecessor = step.previous[v];
+                  return (
+                    <td key={`prev-${v}`} className={`py-1 px-2 font-mono ${columnClass(v)}`}>
+                      {predecessor ? labelOf(predecessor) : 'null'}
+                    </td>
+                  );
+                })}
               </tr>
             </tbody>
           </table>
@@ -248,7 +257,11 @@ function renderShortestPathInspector(step: ShortestPathAlgorithmStep) {
                       <span className="text-foreground">Path</span>
                       {': '}
                       <span className="font-mono text-foreground">
-                        {path ? path.map((id) => labelOf(id)).join(' -> ') : 'unreachable'}
+                        {path
+                          ? path.map((id) => labelOf(id)).join(' -> ')
+                          : Number.isFinite(distance) && hasNegativeCycle
+                            ? 'undefined (affected by negative cycle)'
+                            : 'unreachable'}
                       </span>
                     </div>
                     <div className="text-muted-foreground">
@@ -259,6 +272,22 @@ function renderShortestPathInspector(step: ShortestPathAlgorithmStep) {
                   </div>
                 );
               })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      {isDoneStep && hasNegativeCycle && negativeCycleNodes.length > 1 && (
+        <Card className="gap-1">
+          <CardHeader className="px-3 pt-2 pb-0">
+            <CardTitle className="text-base">Negative Cycle</CardTitle>
+          </CardHeader>
+          <CardContent className="px-3 pb-3 pt-1 text-sm text-muted-foreground">
+            <div>
+              Reachable cycle:
+              {' '}
+              <span className="font-mono text-foreground">
+                {negativeCycleNodes.map((id) => labelOf(id)).join(' -> ')}
+              </span>
             </div>
           </CardContent>
         </Card>

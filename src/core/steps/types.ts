@@ -27,6 +27,8 @@ export interface MaxFlowAlgorithmStep extends AlgorithmStep {
  */
 export interface ShortestPathAlgorithmStep extends AlgorithmStep {
   shortestPathAlgorithm: 'dijkstra' | 'bellman-ford';
+  hasNegativeCycle?: boolean;
+  negativeCycleNodes?: string[];
   source: string;
   nodeLabels: Record<string, string>;
   current: string | null;

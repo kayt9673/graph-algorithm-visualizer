@@ -1,4 +1,4 @@
-import { DirectedGraph } from '../../graph/DirectedGraph';
+import { DirectedGraph } from '../../graph/Graph';
 import type { FlowNetworkGraph } from '../../graph/types';
 import { MaxFlowEdge } from './MaxFlowEdge';
 

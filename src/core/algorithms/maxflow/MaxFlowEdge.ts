@@ -1,4 +1,4 @@
-import { DirectedEdge, type DirectedEdgeInit } from '../../graph/DirectedEdge';
+import { DirectedEdge, type DirectedEdgeInit } from '../../graph/Edge';
 import type { GraphEdge } from '../../graph/types';
 
 export interface MaxFlowEdgeInit extends DirectedEdgeInit {

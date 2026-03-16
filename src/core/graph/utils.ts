@@ -1,4 +1,32 @@
-import type { DirectedGraphEdge, GraphModel } from './types';
+import type { AnyGraphEdge, DirectedGraphEdge, GraphModel } from './types';
+
+/** A map of node IDs to their neighbors. */
+export type AdjList = Map<string, string[]>;
+
+/**
+ * Returns an adjacency list of the nodes in `graph`.
+ */
+export function buildAdjList(graph: GraphModel<AnyGraphEdge>): AdjList {
+    const adj: AdjList = new Map();
+
+    for (const node of graph.nodes) {
+        adj.set(node.data.id, []);
+    }
+
+    for (const edge of graph.edges) {
+        if ('source' in edge.data && 'target' in edge.data) {
+            adj.get(edge.data.source)?.push(edge.data.target);
+            continue;
+        }
+
+        if ('u' in edge.data && 'v' in edge.data) {
+            adj.get(edge.data.u)?.push(edge.data.v);
+            adj.get(edge.data.v)?.push(edge.data.u);
+        }
+    }
+
+    return adj;
+}
 
 /**
  * Returns a list of the incident edges of `u` in `graph`.

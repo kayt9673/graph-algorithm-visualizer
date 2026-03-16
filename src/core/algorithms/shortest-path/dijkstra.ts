@@ -2,6 +2,7 @@ import { MinPriorityQueue } from '@datastructures-js/priority-queue';
 import type { ShortestPathGraph } from '../../graph/types';
 import type { BellmanFordSnapshot } from './bellmanFord';
 import { getIncidentEdges, containsNode } from '../../graph/utils';
+import { initPath, pushSnapshot, type ShortestPathResult } from './utils';
 
 export interface DijkstraSnapshot extends BellmanFordSnapshot {
   /** The current node that is being processed. */
@@ -12,48 +13,11 @@ export interface DijkstraSnapshot extends BellmanFordSnapshot {
   discovered: string[];
 }
 
-export interface ShortestPathResult {
-  snapshots: DijkstraSnapshot[] | BellmanFordSnapshot[];
-  distances: Record<string, number>;
-  previous: Record<string, string | null>;
-}
-
-/**
- * Pushes a shortest-path snapshot while cloning mutable map/array fields.
- */
-export function pushSnapshot(
-  snapshots: Array<BellmanFordSnapshot | DijkstraSnapshot>,
-  snapshot: BellmanFordSnapshot | DijkstraSnapshot,
-): void {
-  snapshots.push({
-    ...snapshot,
-    distances: { ...snapshot.distances },
-    previous: { ...snapshot.previous },
-    ...('frontier' in snapshot ? { frontier: [...snapshot.frontier] } : {}),
-    ...('discovered' in snapshot ? { discovered: [...snapshot.discovered] } : {}),
-  });
-}
-
-/**
- * Initializes the starting distances of all nodes in `graph` to infinity and their
- * backpointer to `null`.
- */
-export function initPath(
-  graph: ShortestPathGraph, 
-  distances: Record<string, number>, 
-  previous: Record<string, string | null>
-) {
-  for (const node of graph.nodes) {
-      distances[node.data.id] = Number.POSITIVE_INFINITY;
-      previous[node.data.id] = null;
-    }
-}
-
 /**
  * Runs Dijkstra's algorithm on `graph` starting from `source`.
  * Returns snapshots of each iteration, the final distances from `source`, and backpointers. 
  */
-export function runDijkstra(graph: ShortestPathGraph, source: string): ShortestPathResult {
+export function runDijkstra(graph: ShortestPathGraph, source: string): ShortestPathResult<DijkstraSnapshot> {
   containsNode(graph, source);
 
   const snapshots: DijkstraSnapshot[] = [];

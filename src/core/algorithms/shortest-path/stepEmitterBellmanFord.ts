@@ -56,6 +56,8 @@ export function emitBellmanFordSteps(graph: ShortestPathGraph, source: string): 
       title,
       description: '',
       shortestPathAlgorithm: 'bellman-ford',
+      hasNegativeCycle: result.hasNegativeCycle,
+      negativeCycleNodes: result.negativeCycleNodes,
       source: snapshot.source,
       nodeLabels,
       current: snapshot.inspectedEdge?.from ?? null,
