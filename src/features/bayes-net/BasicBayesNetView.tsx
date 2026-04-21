@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Badge } from '../../app/components/ui/badge';
+import { Button } from '../../app/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../app/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../app/components/ui/select';
 import type { BayesNetDataset } from './types';
+import type { BayesNetEvidence } from './bayesNet';
 import { buildBayesNetLayout, formatPercent, summarizeNetwork } from './bayesNet';
 
 const bayesNetModules = import.meta.glob('../../../data/*.json', {
@@ -22,6 +24,33 @@ function prettify(value: string): string {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
+}
+
+function stateColor(state: string) {
+  if (state === 'present') {
+    return {
+      bg: '#dcfce7',
+      text: '#166534',
+      nodeFill: '#f0fdf4',
+      nodeStroke: '#22c55e',
+    };
+  }
+
+  if (state === 'absent') {
+    return {
+      bg: '#fee2e2',
+      text: '#991b1b',
+      nodeFill: '#fef2f2',
+      nodeStroke: '#ef4444',
+    };
+  }
+
+  return {
+    bg: '#dbeafe',
+    text: '#1d4ed8',
+    nodeFill: '#ffffff',
+    nodeStroke: '#cbd5e1',
+  };
 }
 
 function getBoxBoundaryPoint(
@@ -55,9 +84,14 @@ export function BasicBayesNetView() {
   const [selectedDatasetId, setSelectedDatasetId] = useState(bayesNetEntries[0]?.id ?? '');
   const dataset =
     bayesNetEntries.find((entry) => entry.id === selectedDatasetId)?.dataset ?? bayesNetEntries[0]?.dataset;
-  const layout = useMemo(() => (dataset ? buildBayesNetLayout(dataset) : null), [dataset]);
+  const [evidence, setEvidence] = useState<BayesNetEvidence>({});
+  const layout = useMemo(() => (dataset ? buildBayesNetLayout(dataset, evidence) : null), [dataset, evidence]);
   const summary = useMemo(() => (dataset ? summarizeNetwork(dataset) : null), [dataset]);
   const [selectedNodeId, setSelectedNodeId] = useState<string>('');
+  const [nodePositions, setNodePositions] = useState<Record<string, { x: number; y: number; boxWidth: number; boxHeight: number }>>({});
+  const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
+  const dragOffsetRef = useRef({ dx: 0, dy: 0 });
+  const svgRef = useRef<SVGSVGElement | null>(null);
 
   useEffect(() => {
     if (!layout?.nodes.length) {
@@ -66,6 +100,10 @@ export function BasicBayesNetView() {
     }
     setSelectedNodeId((current) => (layout.nodes.some((node) => node.id === current) ? current : layout.nodes[0].id));
   }, [layout]);
+
+  useEffect(() => {
+    setEvidence({});
+  }, [selectedDatasetId]);
 
   if (!dataset || !layout) {
     return (
@@ -103,7 +141,7 @@ export function BasicBayesNetView() {
   const leftFindings = findingNodes.filter((_, index) => index % 2 === 0);
   const rightFindings = findingNodes.filter((_, index) => index % 2 === 1);
 
-  const positionedNodes = [
+  const defaultPositionedNodes = [
     ...diagnosisNodes.map((node, index) => {
       const col = index % diagnosisColumns;
       const row = Math.floor(index / diagnosisColumns);
@@ -142,8 +180,82 @@ export function BasicBayesNetView() {
       };
     }),
   ];
+  const positionedNodes = defaultPositionedNodes.map((node) => {
+    const override = nodePositions[node.id];
+    const x = override?.x ?? node.x;
+    const y = override?.y ?? node.y;
+    return {
+      ...node,
+      boxWidth: override?.boxWidth ?? node.boxWidth,
+      boxHeight: override?.boxHeight ?? node.boxHeight,
+      x,
+      y,
+      centerX: x + (override?.boxWidth ?? node.boxWidth) / 2,
+      centerY: y + (override?.boxHeight ?? node.boxHeight) / 2,
+    };
+  });
   const nodeMap = new Map(positionedNodes.map((node) => [node.id, node]));
   const selectedNode = nodeMap.get(selectedNodeId) ?? positionedNodes[0];
+  const selectedFinding = selectedNode?.kind === 'finding'
+    ? dataset.finding_nodes.find((finding) => finding.name === selectedNode.id)
+    : undefined;
+  const activeEvidenceCount = Object.values(evidence).filter(Boolean).length;
+
+  useEffect(() => {
+    if (defaultPositionedNodes.length === 0) {
+      setNodePositions({});
+      return;
+    }
+
+    setNodePositions((current) => {
+      const next = Object.fromEntries(defaultPositionedNodes.map((node) => [
+        node.id,
+        current[node.id] ?? {
+          x: node.x,
+          y: node.y,
+          boxWidth: node.boxWidth,
+          boxHeight: node.boxHeight,
+        },
+      ]));
+      return next;
+    });
+  }, [selectedDatasetId, layout?.nodes.length]);
+
+  const toSvgPoint = (clientX: number, clientY: number) => {
+    const svg = svgRef.current;
+    if (!svg) return { x: 0, y: 0 };
+    const rect = svg.getBoundingClientRect();
+    return {
+      x: ((clientX - rect.left) / rect.width) * viewWidth,
+      y: ((clientY - rect.top) / rect.height) * viewHeight,
+    };
+  };
+
+  const handlePointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (!draggingNodeId) return;
+    const point = toSvgPoint(event.clientX, event.clientY);
+    setNodePositions((current) => {
+      const existing = current[draggingNodeId];
+      if (!existing) return current;
+      return {
+        ...current,
+        [draggingNodeId]: {
+          ...existing,
+          x: point.x - dragOffsetRef.current.dx,
+          y: point.y - dragOffsetRef.current.dy,
+        },
+      };
+    });
+  };
+
+  const handleEvidenceSelect = (nodeId: string, state: string | undefined) => {
+    setEvidence((current) => {
+      const next = { ...current };
+      if (state) next[nodeId] = state;
+      else delete next[nodeId];
+      return next;
+    });
+  };
 
   return (
     <div className="h-full bg-slate-50 flex flex-col overflow-hidden">
@@ -175,6 +287,7 @@ export function BasicBayesNetView() {
             <Badge variant="outline">{summary.nodeCount} nodes</Badge>
             <Badge variant="outline">{summary.edgeCount} edges</Badge>
             <Badge variant="outline">{dataset.network_type}</Badge>
+            <Badge variant="outline">{activeEvidenceCount} findings observed</Badge>
           </div>
         )}
       </div>
@@ -182,7 +295,14 @@ export function BasicBayesNetView() {
       <div className="flex-1 overflow-hidden p-6">
         <div className="grid h-full grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className="min-h-0 overflow-auto rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-            <svg viewBox={`0 0 ${viewWidth} ${viewHeight}`} className="w-full h-auto">
+            <svg
+              ref={svgRef}
+              viewBox={`0 0 ${viewWidth} ${viewHeight}`}
+              className="w-full h-auto"
+              onPointerMove={handlePointerMove}
+              onPointerUp={() => setDraggingNodeId(null)}
+              onPointerLeave={() => setDraggingNodeId(null)}
+            >
               <defs>
                 <marker id="basic-bn-arrow" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
                   <path d="M0,0 L0,8 L8,4 z" fill="#94a3b8" />
@@ -222,7 +342,7 @@ export function BasicBayesNetView() {
                     d={curve}
                     fill="none"
                     stroke="rgba(100, 116, 139, 0.55)"
-                    strokeWidth={1.5 + edge.strength * 10}
+                    strokeWidth="2.5"
                     markerEnd="url(#basic-bn-arrow)"
                   />
                 );
@@ -231,24 +351,44 @@ export function BasicBayesNetView() {
               {positionedNodes.map((node) => {
                 const isSelected = node.id === selectedNode?.id;
                 const barWidth = node.kind === 'diagnosis' ? 96 : 118;
+                const observedState = evidence[node.id];
+                const observedColors = stateColor(observedState ?? '');
+                const defaultFill = node.kind === 'diagnosis' ? '#eff6ff' : '#ffffff';
+                const defaultStroke = node.kind === 'diagnosis' ? '#60a5fa' : '#cbd5e1';
+                const nodeFill = observedState ? observedColors.nodeFill : defaultFill;
+                const nodeStroke = observedState ? observedColors.nodeStroke : defaultStroke;
                 return (
                   <g
                     key={node.id}
                     transform={`translate(${node.x}, ${node.y})`}
-                    onClick={() => setSelectedNodeId(node.id)}
+                    onPointerDown={(event) => {
+                      const point = toSvgPoint(event.clientX, event.clientY);
+                      dragOffsetRef.current = {
+                        dx: point.x - node.x,
+                        dy: point.y - node.y,
+                      };
+                      setDraggingNodeId(node.id);
+                      setSelectedNodeId(node.id);
+                      event.currentTarget.setPointerCapture(event.pointerId);
+                    }}
                     style={{ cursor: 'pointer' }}
                   >
                     <rect
                       width={node.boxWidth}
                       height={node.boxHeight}
                       rx="18"
-                      fill={node.kind === 'diagnosis' ? '#eff6ff' : 'white'}
-                      stroke={isSelected ? '#2563eb' : node.kind === 'diagnosis' ? '#60a5fa' : '#cbd5e1'}
+                      fill={nodeFill}
+                      stroke={isSelected ? '#2563eb' : nodeStroke}
                       strokeWidth={isSelected ? '3' : '1.5'}
                     />
                     <text x="18" y="34" fontSize={node.kind === 'diagnosis' ? '19' : '18'} fontWeight="600" fill="#0f172a">
                       {node.name}
                     </text>
+                    {observedState ? (
+                      <text x={node.boxWidth - 18} y="34" textAnchor="end" fontSize="12" fontWeight="600" fill="#2563eb">
+                        Evidence: {prettify(observedState)}
+                      </text>
+                    ) : null}
                     {node.probabilities.slice(0, 3).map((entry, index) => (
                       <g key={`${node.id}-${entry.state}`} transform={`translate(18, ${58 + index * 30})`}>
                         <text x="0" y="16" fontSize="13" fill="#475569">
@@ -269,7 +409,7 @@ export function BasicBayesNetView() {
                       </g>
                     ))}
                     <text x="18" y={node.boxHeight - 16} fontSize="12" fill="#64748b">
-                      {node.kind === 'diagnosis' ? 'Diagnosis node' : 'Top 2 diagnosis links shown'}
+                      {node.kind === 'diagnosis' ? 'Diagnosis node' : observedState ? 'Observed finding' : 'Top 2 diagnosis links shown'}
                     </text>
                   </g>
                 );
@@ -279,6 +419,37 @@ export function BasicBayesNetView() {
 
           <div className="min-h-0 overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm">
             <div className="p-4 lg:p-6 space-y-4">
+              <Card className="border-slate-200 shadow-none gap-4">
+                <CardHeader className="pb-0">
+                  <CardTitle className="text-lg">Differential Diagnosis</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {[...diagnosisNodes]
+                    .sort((a, b) => (b.probabilities[0]?.probability ?? 0) - (a.probabilities[0]?.probability ?? 0))
+                    .map((node) => {
+                      const presentProbability =
+                        node.probabilities.find((entry) => entry.state === 'present')?.probability ??
+                        node.probabilities[0]?.probability ??
+                        0;
+
+                      return (
+                        <div key={node.id} className="rounded-lg border border-slate-200 p-3">
+                          <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+                            <span className="font-medium text-slate-900">{node.name}</span>
+                            <span className="tabular-nums text-slate-700">{formatPercent(presentProbability)}</span>
+                          </div>
+                          <div className="h-2 rounded-full bg-slate-100">
+                            <div
+                              className="h-2 rounded-full bg-blue-500"
+                              style={{ width: `${Math.max(presentProbability * 100, 2)}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                </CardContent>
+              </Card>
+
               <Card className="border-slate-200 shadow-none gap-4">
                 <CardHeader className="pb-0">
                   <CardTitle className="text-lg">Selected Node</CardTitle>
@@ -330,6 +501,74 @@ export function BasicBayesNetView() {
                       ))}
                     </div>
                   </div>
+
+                  {selectedFinding ? (
+                    <div>
+                      <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Evidence</div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          variant={evidence[selectedFinding.name] == null ? 'default' : 'outline'}
+                          onClick={() => handleEvidenceSelect(selectedFinding.name, undefined)}
+                        >
+                          Unobserved
+                        </Button>
+                        {selectedFinding.states.map((state) => (
+                          <Button
+                            key={state}
+                            size="sm"
+                            variant={evidence[selectedFinding.name] === state ? 'default' : 'outline'}
+                            onClick={() => handleEvidenceSelect(selectedFinding.name, state)}
+                            className={
+                              evidence[selectedFinding.name] === state
+                                ? state === 'present'
+                                  ? 'bg-green-600 text-white hover:bg-green-700'
+                                  : state === 'absent'
+                                    ? 'bg-red-600 text-white hover:bg-red-700'
+                                    : ''
+                                : ''
+                            }
+                          >
+                            {prettify(state)}
+                          </Button>
+                        ))}
+                      </div>
+                      <p className="mt-2 text-xs text-slate-500">
+                        Set a symptom state to update the diagnosis posteriors using Bayes rule. Drag any node to rearrange the network.
+                      </p>
+                    </div>
+                  ) : null}
+                </CardContent>
+              </Card>
+
+              <Card className="border-slate-200 shadow-none gap-4">
+                <CardHeader className="pb-0">
+                  <CardTitle className="text-lg">Evidence Summary</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {activeEvidenceCount > 0 ? (
+                    Object.entries(evidence).map(([findingName, state]) => (
+                      <div key={findingName} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                        <span className="text-slate-700">{prettify(findingName)}</span>
+                        <span
+                          className="rounded px-2 py-0.5 font-medium"
+                          style={{
+                            backgroundColor: stateColor(state ?? '').bg,
+                            color: stateColor(state ?? '').text,
+                          }}
+                        >
+                          {prettify(state ?? '')}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-slate-500">No symptom evidence selected yet.</p>
+                  )}
+                  {activeEvidenceCount > 0 ? (
+                    <Button variant="outline" onClick={() => setEvidence({})}>
+                      Clear Evidence
+                    </Button>
+                  ) : null}
                 </CardContent>
               </Card>
             </div>

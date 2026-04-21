@@ -38,6 +38,4 @@ export interface BayesNetDisplayNode {
   states: string[];
   probabilities: NodeStateProbability[];
   maxProbability: number;
-  observationRate?: number;
-  discrimination?: number;
 }

@@ -4,6 +4,8 @@ import type {
   NodeStateProbability,
 } from './types';
 
+export type BayesNetEvidence = Record<string, string | undefined>;
+
 export interface BayesNetLayoutResult {
   nodes: BayesNetDisplayNode[];
   edges: Array<{ source: string; target: string; strength: number }>;
@@ -45,6 +47,78 @@ function buildDiagnosisProbabilities(prior: number): NodeStateProbability[] {
     present: prior,
     absent: Math.max(0, 1 - prior),
   });
+}
+
+function computeDiagnosisPosterior(
+  dataset: BayesNetDataset,
+  evidence: BayesNetEvidence,
+): Record<string, number> {
+  const unnormalized = Object.fromEntries(
+    dataset.disease_node.states.map((diseaseState) => {
+      let probability = dataset.disease_node.priors[diseaseState] ?? 0;
+
+      for (const finding of dataset.finding_nodes) {
+        const observedState = evidence[finding.name];
+        if (!observedState) continue;
+        probability *= finding.cpt[diseaseState]?.[observedState] ?? 0;
+      }
+
+      return [diseaseState, probability];
+    }),
+  );
+
+  const total = Object.values(unnormalized).reduce((sum, value) => sum + value, 0);
+  if (total <= 0) {
+    return Object.fromEntries(
+      dataset.disease_node.states.map((diseaseState) => [
+        diseaseState,
+        dataset.disease_node.priors[diseaseState] ?? 0,
+      ]),
+    );
+  }
+
+  return Object.fromEntries(
+    Object.entries(unnormalized).map(([diseaseState, probability]) => [
+      diseaseState,
+      probability / total,
+    ]),
+  );
+}
+
+function buildObservedProbabilities(states: string[], observedState: string): NodeStateProbability[] {
+  return states.map((state) => ({
+    state,
+    probability: state === observedState ? 1 : 0,
+  }));
+}
+
+function computeFindingPosteriorProbabilities(
+  dataset: BayesNetDataset,
+  findingName: string,
+  diagnosisPosterior: Record<string, number>,
+  evidence: BayesNetEvidence,
+): NodeStateProbability[] {
+  const finding = dataset.finding_nodes.find((node) => node.name === findingName);
+  if (!finding) return [];
+
+  const observedState = evidence[finding.name];
+  if (observedState) {
+    return buildObservedProbabilities(finding.states, observedState);
+  }
+
+  return normalizeProbabilities(
+    finding.states,
+    Object.fromEntries(
+      finding.states.map((state) => [
+        state,
+        dataset.disease_node.states.reduce((sum, diseaseState) => {
+          const posterior = diagnosisPosterior[diseaseState] ?? 0;
+          const conditional = finding.cpt[diseaseState]?.[state] ?? 0;
+          return sum + posterior * conditional;
+        }, 0),
+      ]),
+    ),
+  );
 }
 
 function computeAverageFindingDistribution(dataset: BayesNetDataset, findingName: string): Record<string, number> {
@@ -113,14 +187,18 @@ export function summarizeNetwork(dataset: BayesNetDataset) {
   return {
     nodeCount: diagnosisCount + findingCount,
     edgeCount,
-    findingCount,
     diseaseStates: diagnosisCount,
   };
 }
 
-export function buildBayesNetLayout(dataset: BayesNetDataset): BayesNetLayoutResult {
+export function buildBayesNetLayout(
+  dataset: BayesNetDataset,
+  evidence: BayesNetEvidence = {},
+): BayesNetLayoutResult {
+  const diagnosisPosterior = computeDiagnosisPosterior(dataset, evidence);
+
   const diagnosisNodes: BayesNetDisplayNode[] = dataset.disease_node.states.map((diseaseState) => {
-    const probabilities = buildDiagnosisProbabilities(dataset.disease_node.priors[diseaseState] ?? 0);
+    const probabilities = buildDiagnosisProbabilities(diagnosisPosterior[diseaseState] ?? 0);
     return {
       id: `diagnosis:${diseaseState}`,
       name: toTitleCase(diseaseState),
@@ -133,18 +211,11 @@ export function buildBayesNetLayout(dataset: BayesNetDataset): BayesNetLayoutRes
   });
 
   const findingNodes: BayesNetDisplayNode[] = dataset.finding_nodes.map((finding) => {
-    const probabilities = normalizeProbabilities(
-      finding.states,
-      Object.fromEntries(
-        finding.states.map((state) => [
-          state,
-          dataset.disease_node.states.reduce((sum, diseaseState) => {
-            const prior = dataset.disease_node.priors[diseaseState] ?? 0;
-            const conditional = finding.cpt[diseaseState]?.[state] ?? 0;
-            return sum + prior * conditional;
-          }, 0),
-        ]),
-      ),
+    const probabilities = computeFindingPosteriorProbabilities(
+      dataset,
+      finding.name,
+      diagnosisPosterior,
+      evidence,
     );
 
     return {
@@ -155,8 +226,6 @@ export function buildBayesNetLayout(dataset: BayesNetDataset): BayesNetLayoutRes
       states: finding.states,
       probabilities,
       maxProbability: Math.max(...probabilities.map((item) => item.probability), 0),
-      observationRate: finding.mean_observation_rate,
-      discrimination: finding.discrimination,
     };
   });
 
