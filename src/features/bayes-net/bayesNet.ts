@@ -8,7 +8,7 @@ export type BayesNetEvidence = Record<string, string | undefined>;
 
 export interface BayesNetLayoutResult {
   nodes: BayesNetDisplayNode[];
-  edges: Array<{ source: string; target: string; strength: number }>;
+  edges: Array<{ source: string; target: string }>;
   width: number;
   height: number;
 }
@@ -173,7 +173,7 @@ function buildVisibleEdges(
       .sort((a, b) => b.strength - a.strength);
 
     return ranked.slice(0, 2);
-  });
+  }).map(({ source, target }) => ({ source, target }));
 }
 
 export function formatPercent(value: number): string {
@@ -206,7 +206,6 @@ export function buildBayesNetLayout(
       parents: [],
       states: ['present', 'absent'],
       probabilities,
-      maxProbability: Math.max(...probabilities.map((item) => item.probability), 0),
     };
   });
 
@@ -225,7 +224,6 @@ export function buildBayesNetLayout(
       parents: diagnosisNodes.map((node) => node.id),
       states: finding.states,
       probabilities,
-      maxProbability: Math.max(...probabilities.map((item) => item.probability), 0),
     };
   });
 

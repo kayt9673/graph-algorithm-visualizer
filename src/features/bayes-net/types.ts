@@ -37,5 +37,4 @@ export interface BayesNetDisplayNode {
   parents: string[];
   states: string[];
   probabilities: NodeStateProbability[];
-  maxProbability: number;
 }
