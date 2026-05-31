@@ -90,6 +90,8 @@ export class UndirectedEdge extends Edge {
         return {
             data: {
                 id: this.id,
+                source: this.u,
+                target: this.v,
                 u: this.u,
                 v: this.v,
                 label: this.label,

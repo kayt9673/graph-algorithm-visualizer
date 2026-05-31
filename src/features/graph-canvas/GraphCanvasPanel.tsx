@@ -11,6 +11,7 @@ interface GraphCanvasPanelProps {
   appState: AppState;
   selectedAlgorithm: string;
   selectedShortestPath?: 'dijkstra' | 'bellman-ford';
+  selectedMSTAlgorithm?: 'kruskal' | 'prim' | 'reverse-delete';
   normalElements: GraphElement[];
   residualElements: GraphElement[];
   showResidual: boolean;
@@ -25,6 +26,7 @@ export function GraphCanvasPanel({
   appState,
   selectedAlgorithm,
   selectedShortestPath,
+  selectedMSTAlgorithm,
   normalElements,
   residualElements,
   showResidual,
@@ -38,6 +40,7 @@ export function GraphCanvasPanel({
   const residualCyRef = useRef<cytoscape.Core | null>(null);
 
   const isFordFulkerson = selectedAlgorithm === 'ford-fulkerson';
+  const isMST = selectedAlgorithm === 'mst';
   const isBellmanFord = selectedAlgorithm === 'shortest-paths' && selectedShortestPath === 'bellman-ford';
   const showSplitView = isFordFulkerson && showResidual;
   const shouldSyncResidualView = appState === 'running' || appState === 'finished';
@@ -148,6 +151,15 @@ export function GraphCanvasPanel({
                       <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#dc2626]" /><span>Saturated</span></div>
                       <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#f59e0b]" /><span>Changed</span></div>
                     </>
+                  ) : isMST ? (
+                    <>
+                      <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#64748b]" /><span>Unselected</span></div>
+                      <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#f59e0b]" /><span>Candidate</span></div>
+                      <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#16a34a]" /><span>{selectedMSTAlgorithm === 'reverse-delete' ? 'Final MST Edge' : 'MST Edge'}</span></div>
+                      {selectedMSTAlgorithm !== 'prim' && (
+                        <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 border-t-2 border-dashed border-[#dc2626]" /><span>Rejected</span></div>
+                      )}
+                    </>
                   ) : (
                     <>
                       <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-[#22c55e]" /><span>Current</span></div>
@@ -193,6 +205,15 @@ export function GraphCanvasPanel({
                     <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#16a34a]" /><span>Augmenting Path</span></div>
                     <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#dc2626]" /><span>Saturated</span></div>
                     <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#f59e0b]" /><span>Changed</span></div>
+                  </>
+                ) : isMST ? (
+                  <>
+                    <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#64748b]" /><span>Unselected</span></div>
+                    <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#f59e0b]" /><span>Candidate</span></div>
+                    <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 bg-[#16a34a]" /><span>{selectedMSTAlgorithm === 'reverse-delete' ? 'Final MST Edge' : 'MST Edge'}</span></div>
+                    {selectedMSTAlgorithm !== 'prim' && (
+                      <div className="flex items-center gap-1.5"><div className="w-6 h-0.5 border-t-2 border-dashed border-[#dc2626]" /><span>Rejected</span></div>
+                    )}
                   </>
                 ) : (
                   <>

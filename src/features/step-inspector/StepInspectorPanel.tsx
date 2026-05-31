@@ -3,11 +3,11 @@ import { Badge } from '../../app/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../../app/components/ui/card';
 import { Separator } from '../../app/components/ui/separator';
 import type { AppState, GraphEdge, GraphElement } from '../../core/graph/types';
-import type { MaxFlowAlgorithmStep, ShortestPathAlgorithmStep } from '../../core/steps/types';
+import type { MaxFlowAlgorithmStep, MSTAlgorithmStep, ShortestPathAlgorithmStep } from '../../core/steps/types';
 
 interface StepInspectorPanelProps {
   appState: AppState;
-  currentStepData?: MaxFlowAlgorithmStep | ShortestPathAlgorithmStep;
+  currentStepData?: MaxFlowAlgorithmStep | ShortestPathAlgorithmStep | MSTAlgorithmStep;
   totalSteps: number;
   selectedAlgorithm: string;
 }
@@ -16,8 +16,6 @@ interface ResidualChange {
   edge: string;
   capacity: number;
   flow: number;
-  forwardResidual: number;
-  backwardResidual: number;
 }
 
 function isEdgeElement(element: GraphElement): element is GraphEdge {
@@ -26,6 +24,10 @@ function isEdgeElement(element: GraphElement): element is GraphEdge {
 
 function isShortestPathStep(step: MaxFlowAlgorithmStep | ShortestPathAlgorithmStep): step is ShortestPathAlgorithmStep {
   return 'distances' in step && 'frontier' in step && 'discovered' in step;
+}
+
+function isMSTStep(step: MaxFlowAlgorithmStep | ShortestPathAlgorithmStep | MSTAlgorithmStep): step is MSTAlgorithmStep {
+  return 'mstAlgorithm' in step;
 }
 
 function getResidualChanges(step: MaxFlowAlgorithmStep): ResidualChange[] {
@@ -53,8 +55,6 @@ function getResidualChanges(step: MaxFlowAlgorithmStep): ResidualChange[] {
         edge: `${source} -> ${target}`,
         capacity,
         flow,
-        forwardResidual: capacity - flow,
-        backwardResidual: Math.max(0, flow),
       };
     })
     .filter((change): change is ResidualChange => Boolean(change));
@@ -344,6 +344,64 @@ function renderMaxFlowInspector(step: MaxFlowAlgorithmStep) {
   );
 }
 
+function renderMSTInspector(step: MSTAlgorithmStep) {
+  const isPrim = step.mstAlgorithm === 'prim';
+  const isReverseDelete = step.mstAlgorithm === 'reverse-delete';
+  const totalLabel = isReverseDelete && step.title !== 'MST Complete' ? 'Remaining Graph Weight' : 'Current MST Weight';
+  const acceptedEdgeLabels = step.acceptedEdgeLabels ?? [];
+  const includedVertices = isPrim ? step.includedVertices ?? [] : [];
+
+  return (
+    <>
+      <Separator />
+      <div className="space-y-1.5 min-h-0 flex-1">
+        <Card className="gap-1">
+          <CardHeader className="px-3 pt-2 pb-0"><CardTitle className="text-base">Selected Edge</CardTitle></CardHeader>
+          <CardContent className="px-3 pb-3 pt-0 text-sm">
+            {step.edgeLabel ? (
+              <div className="space-y-1">
+                <div className="font-mono text-base text-foreground">{step.edgeLabel}</div>
+                <div className="text-muted-foreground">Weight: <span className="font-mono text-foreground">{step.edgeWeight}</span></div>
+              </div>
+            ) : (
+              <div className="text-muted-foreground">No edge selected.</div>
+            )}
+          </CardContent>
+        </Card>
+
+        {isPrim && (
+          <Card className="gap-1">
+            <CardHeader className="px-3 pt-2 pb-0"><CardTitle className="text-base">Included Vertices</CardTitle></CardHeader>
+            <CardContent className="px-3 pb-3 pt-0 text-sm">
+              <div className="font-mono text-muted-foreground">
+                {includedVertices.length > 0 ? includedVertices.join(', ') : '(none)'}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        <Card className="gap-1">
+          <CardHeader className="px-3 pt-2 pb-0"><CardTitle className="text-base">Edges in MST</CardTitle></CardHeader>
+          <CardContent className="px-3 pb-3 pt-0 text-sm">
+            {acceptedEdgeLabels.length > 0 ? (
+              <div className="space-y-1 font-mono text-muted-foreground">
+                {acceptedEdgeLabels.map((label) => <div key={label}>{label}</div>)}
+              </div>
+            ) : (
+              <div className="text-muted-foreground">No edges selected yet.</div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="bg-primary text-primary-foreground gap-1">
+          <CardHeader className="px-3 pt-2 pb-0"><CardTitle className="text-base">{totalLabel}</CardTitle></CardHeader>
+          <CardContent className="px-3 pb-3 pt-0"><div className="text-lg font-medium">{step.totalWeight}</div></CardContent>
+        </Card>
+      </div>
+    </>
+  );
+}
+
 export function StepInspectorPanel({
   appState,
   currentStepData,
@@ -376,7 +434,9 @@ export function StepInspectorPanel({
 
               {selectedAlgorithm === 'shortest-paths' && isShortestPathStep(currentStepData)
                 ? renderShortestPathInspector(currentStepData)
-                : renderMaxFlowInspector(currentStepData as MaxFlowAlgorithmStep)}
+                : isMSTStep(currentStepData)
+                  ? renderMSTInspector(currentStepData)
+                  : renderMaxFlowInspector(currentStepData as MaxFlowAlgorithmStep)}
             </div>
           ) : (
             <div className="text-center py-8 text-muted-foreground">

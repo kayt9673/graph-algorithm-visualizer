@@ -64,7 +64,7 @@ function computeChangedEdgeIds(previous: GraphElement[], next: GraphElement[]): 
 /**
  * Returns the elements of the residual graph from `elements`. 
  */
-export function buildResidualElementsFromElements(elements: GraphElement[], path?: string[]): GraphElement[] {
+function buildResidualElementsFromElements(elements: GraphElement[], path?: string[]): GraphElement[] {
   const nodes = elements.filter((element) => !isDirectedEdgeElement(element));
   const edges = elements.filter(isDirectedEdgeElement);
   const residualEdges: GraphEdge[] = [];

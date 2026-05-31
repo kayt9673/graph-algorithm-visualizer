@@ -11,6 +11,7 @@ export const CYTOSCAPE_STYLE = [
       height: 40,
       'font-size': '14px',
       'font-weight': '500',
+      'z-index': 10,
       'transition-property': 'background-color, border-color, border-width',
       'transition-duration': '220ms',
       'transition-timing-function': 'ease-in-out',
@@ -71,12 +72,15 @@ export const CYTOSCAPE_STYLE = [
       'line-color': '#2563eb',
       'target-arrow-color': '#2563eb',
       'target-arrow-shape': 'triangle',
+      'source-endpoint': 'outside-to-node',
+      'target-endpoint': 'outside-to-node',
       'curve-style': 'bezier',
       label: 'data(label)',
       'text-rotation': 'autorotate',
       'font-size': '12px',
       'text-outline-color': '#ffffff',
       'text-outline-width': 2,
+      'z-index': 1,
       'transition-property': 'line-color, target-arrow-color, width, opacity',
       'transition-duration': '260ms',
       'transition-timing-function': 'ease-in-out',
@@ -194,6 +198,55 @@ export const CYTOSCAPE_STYLE = [
       'line-opacity': 1,
       'target-arrow-opacity': 1,
       'text-opacity': 1,
+    },
+  },
+  {
+    selector: 'node.mst-node',
+    style: {
+      'background-color': '#64748b',
+      'border-width': 2,
+      'border-color': '#475569',
+    },
+  },
+  {
+    selector: 'edge.mst-edge',
+    style: {
+      'line-color': '#64748b',
+      'target-arrow-shape': 'none',
+      width: 3,
+      opacity: 0.8,
+    },
+  },
+  {
+    selector: 'edge.mst-candidate',
+    style: {
+      'line-color': '#f59e0b',
+      width: 5,
+      opacity: 1,
+    },
+  },
+  {
+    selector: 'edge.mst-current',
+    style: {
+      'line-color': '#f59e0b',
+      width: 6,
+      opacity: 1,
+    },
+  },
+  {
+    selector: 'edge.mst-accepted',
+    style: {
+      'line-color': '#16a34a',
+      width: 5,
+      opacity: 1,
+    },
+  },
+  {
+    selector: 'edge.mst-rejected',
+    style: {
+      'line-color': '#dc2626',
+      'line-style': 'dashed',
+      opacity: 0.35,
     },
   },
 ] as const;

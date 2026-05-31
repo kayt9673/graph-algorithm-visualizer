@@ -35,8 +35,11 @@ export interface DirectedGraphEdge {
 export interface UndirectedGraphEdge {
   data: {
     id: string;
+    source: string;
+    target: string;
     u: string;
     v: string;
+    weight?: number;
     label?: string;
   };
   classes?: string;
@@ -49,7 +52,7 @@ export type AnyGraphEdge = DirectedGraphEdge | UndirectedGraphEdge;
 
 export type GraphEdge = DirectedGraphEdge;
 
-export type GraphElement = GraphNode | GraphEdge;
+export type GraphElement = GraphNode | AnyGraphEdge;
 
 /**
  * A generic graph model used by the app. 
@@ -68,12 +71,6 @@ export interface FlowNetworkGraph extends GraphModel<DirectedGraphEdge> {
   source: string;
   sink: string;
 }
-
-/**
- * Dijkstra's: Non-negative edge weights.
- * Bellman-Ford: No negative cycles.
- */
-export type ShortestPathAlgorithm = 'dijkstra' | 'bellman-ford';
 
 /**
  * A weighted directed edge containing `data` and `weight`.

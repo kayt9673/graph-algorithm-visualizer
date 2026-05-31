@@ -7,12 +7,14 @@ import { StepInspectorPanel } from '../features/step-inspector/StepInspectorPane
 import { PlaybackControls } from '../features/playback/PlaybackControls';
 import { usePlayback } from '../features/playback/usePlayback';
 import { emitFordFulkersonSteps } from '../core/algorithms/maxflow';
+import { emitMSTSteps, type MSTAlgorithm } from '../core/algorithms/mst';
 import { emitBellmanFordSteps, emitDijkstraSteps } from '../core/algorithms/shortest-path';
-import type { MaxFlowAlgorithmStep, ShortestPathAlgorithmStep } from '../core/steps/types';
-import type { AppState, FlowNetworkGraph, GraphElement, ShortestPathGraph } from '../core/graph/types';
+import type { MaxFlowAlgorithmStep, MSTAlgorithmStep, ShortestPathAlgorithmStep } from '../core/steps/types';
+import type { AppState, FlowNetworkGraph, GraphElement, MSTGraph, ShortestPathGraph } from '../core/graph/types';
 
 type GraphComplexity = 'simple' | 'complex';
 type ShortestPathChoice = 'bellman-ford' | 'dijkstra';
+type AlgorithmChoice = 'ford-fulkerson' | 'shortest-paths' | 'mst';
 
 interface GraphGenerationOptions {
   preferCycles?: boolean;
@@ -33,6 +35,15 @@ function pickDistinctRandom<T>(items: T[], count: number): T[] {
   }
 
   return picked;
+}
+
+function shuffledRange(start: number, end: number): number[] {
+  const values = Array.from({ length: end - start + 1 }, (_item, index) => start + index);
+  for (let i = values.length - 1; i > 0; i -= 1) {
+    const j = randomInt(0, i);
+    [values[i], values[j]] = [values[j], values[i]];
+  }
+  return values;
 }
 
 function buildGeneratedNodes(complexity: GraphComplexity) {
@@ -190,18 +201,71 @@ function generateGraphByComplexity(complexity: GraphComplexity, options: GraphGe
   };
 }
 
+function generateMSTGraph(complexity: GraphComplexity): MSTGraph {
+  const nodeCount = complexity === 'simple' ? randomInt(5, 6) : randomInt(7, 9);
+  const nodes = Array.from({ length: nodeCount }, (_item, index) => ({
+    data: { id: `n${index}`, label: labelForIndex(index) },
+    classes: 'mst-node',
+  }));
+  const edgePairs = new Set<string>();
+
+  const pairKey = (a: string, b: string) => a < b ? `${a}|${b}` : `${b}|${a}`;
+  const addEdge = (a: string, b: string) => {
+    if (a !== b) edgePairs.add(pairKey(a, b));
+  };
+
+  for (let i = 1; i < nodes.length; i += 1) {
+    const parent = randomInt(0, i - 1);
+    addEdge(nodes[parent].data.id, nodes[i].data.id);
+  }
+
+  const targetEdges = complexity === 'simple' ? randomInt(nodeCount + 1, nodeCount + 3) : randomInt(nodeCount + 4, nodeCount + 8);
+  while (edgePairs.size < targetEdges) {
+    addEdge(nodes[randomInt(0, nodeCount - 1)].data.id, nodes[randomInt(0, nodeCount - 1)].data.id);
+  }
+
+  let edgeId = 1;
+  const weights = shuffledRange(1, Math.max(40, edgePairs.size * 3));
+  const edges = [...edgePairs].map((pair) => {
+    const [u, v] = pair.split('|');
+    const weight = weights[edgeId - 1];
+    return {
+      data: {
+        id: `m${edgeId++}`,
+        source: u,
+        target: v,
+        u,
+        v,
+        weight,
+        label: `${weight}`,
+      },
+      classes: 'mst-edge',
+    };
+  });
+
+  return {
+    name: complexity === 'simple' ? 'Simple Weighted Graph' : 'Complex Weighted Graph',
+    nodes,
+    edges,
+    directed: false,
+    source: nodes[0]?.data.id,
+  };
+}
+
 export function AlgorithmVisualizer() {
   const [appState, setAppState] = useState<AppState>('editing');
-  const [selectedAlgorithm, setSelectedAlgorithm] = useState('ford-fulkerson');
+  const [selectedAlgorithm, setSelectedAlgorithm] = useState<AlgorithmChoice>('ford-fulkerson');
   const [selectedComplexity, setSelectedComplexity] = useState<GraphComplexity>('simple');
   const [selectedShortestPath, setSelectedShortestPath] = useState<ShortestPathChoice>('dijkstra');
+  const [selectedMSTAlgorithm, setSelectedMSTAlgorithm] = useState<MSTAlgorithm>('kruskal');
   const [selectedSourceNode, setSelectedSourceNode] = useState('s');
   const [showResidual, setShowResidual] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [playbackSpeed, setPlaybackSpeed] = useState([1]);
-  const [algorithmSteps, setAlgorithmSteps] = useState<Array<MaxFlowAlgorithmStep | ShortestPathAlgorithmStep>>([]);
+  const [algorithmSteps, setAlgorithmSteps] = useState<Array<MaxFlowAlgorithmStep | ShortestPathAlgorithmStep | MSTAlgorithmStep>>([]);
   const [currentGraph, setCurrentGraph] = useState<FlowNetworkGraph>(() => generateGraphByComplexity('simple'));
+  const [currentMSTGraph, setCurrentMSTGraph] = useState<MSTGraph>(() => generateMSTGraph('simple'));
 
   const cyRef = useRef<cytoscape.Core | null>(null);
   const currentStepData = algorithmSteps[currentStep];
@@ -238,7 +302,8 @@ export function AlgorithmVisualizer() {
   };
 
   const shortestPathGraph = toShortestPathGraph(currentGraph);
-  const sourceNodeOptions = shortestPathGraph.nodes.map((node) => ({
+  const activeSourceGraph = selectedAlgorithm === 'mst' ? currentMSTGraph : shortestPathGraph;
+  const sourceNodeOptions = activeSourceGraph.nodes.map((node) => ({
     id: node.data.id,
     label: node.data.label,
   }));
@@ -260,7 +325,9 @@ export function AlgorithmVisualizer() {
 
   const editingElements = selectedAlgorithm === 'ford-fulkerson'
     ? currentGraph.nodes.concat(currentGraph.edges)
-    : shortestPathGraph.nodes.concat(shortestPathGraph.edges);
+    : selectedAlgorithm === 'mst'
+      ? currentMSTGraph.nodes.concat(currentMSTGraph.edges)
+      : shortestPathGraph.nodes.concat(shortestPathGraph.edges);
   const normalGraphElements: GraphElement[] =
     appState === 'running' || appState === 'finished'
       ? currentStepData?.elements ?? []
@@ -279,9 +346,11 @@ export function AlgorithmVisualizer() {
   const handleRun = () => {
     const steps = selectedAlgorithm === 'ford-fulkerson'
       ? emitFordFulkersonSteps(currentGraph)
-      : selectedShortestPath === 'bellman-ford'
-        ? emitBellmanFordSteps(shortestPathGraph, selectedSourceNode)
-        : emitDijkstraSteps(shortestPathGraph, selectedSourceNode);
+      : selectedAlgorithm === 'mst'
+        ? emitMSTSteps(currentMSTGraph, selectedMSTAlgorithm, selectedSourceNode)
+        : selectedShortestPath === 'bellman-ford'
+          ? emitBellmanFordSteps(shortestPathGraph, selectedSourceNode)
+          : emitDijkstraSteps(shortestPathGraph, selectedSourceNode);
     setAlgorithmSteps(steps);
     setAppState('running');
     setCurrentStep(0);
@@ -298,11 +367,17 @@ export function AlgorithmVisualizer() {
   };
 
   const handleGenerateGraph = () => {
-    const next = generateGraphByComplexity('simple', {
-      preferCycles: selectedAlgorithm === 'shortest-paths' && selectedShortestPath === 'bellman-ford',
-    });
-    setCurrentGraph(next);
-    setSelectedSourceNode(next.source);
+    if (selectedAlgorithm === 'mst') {
+      const next = generateMSTGraph('simple');
+      setCurrentMSTGraph(next);
+      setSelectedSourceNode(next.source ?? next.nodes[0]?.data.id ?? 'n0');
+    } else {
+      const next = generateGraphByComplexity(selectedComplexity, {
+        preferCycles: selectedAlgorithm === 'shortest-paths' && selectedShortestPath === 'bellman-ford',
+      });
+      setCurrentGraph(next);
+      setSelectedSourceNode(next.source);
+    }
     resetExecutionState();
   };
 
@@ -335,15 +410,25 @@ export function AlgorithmVisualizer() {
       <HeaderBar
         selectedAlgorithm={selectedAlgorithm}
         onAlgorithmChange={(value) => {
-          setSelectedAlgorithm(value);
+          const nextAlgorithm = value as AlgorithmChoice;
+          setSelectedAlgorithm(nextAlgorithm);
           if (value === 'ford-fulkerson') {
             const next = generateGraphByComplexity(selectedComplexity);
             setCurrentGraph(next);
             setSelectedSourceNode(next.source);
+          } else if (value === 'mst') {
+            const next = generateMSTGraph('simple');
+            setCurrentMSTGraph(next);
+            setSelectedSourceNode(next.source ?? next.nodes[0]?.data.id ?? 'n0');
           }
           resetExecutionState();
         }}
-        selectedComplexity={selectedAlgorithm === 'ford-fulkerson' ? selectedComplexity : selectedShortestPath}
+        selectedComplexity={selectedAlgorithm === 'shortest-paths' ? selectedShortestPath : selectedComplexity}
+        selectedMSTAlgorithm={selectedMSTAlgorithm}
+        onMSTAlgorithmChange={(value) => {
+          setSelectedMSTAlgorithm(value as MSTAlgorithm);
+          resetExecutionState();
+        }}
         onComplexityChange={handleComplexityChange}
         selectedSourceNode={selectedSourceNode}
         sourceNodeOptions={sourceNodeOptions}
@@ -360,6 +445,7 @@ export function AlgorithmVisualizer() {
             appState={appState}
             selectedAlgorithm={selectedAlgorithm}
             selectedShortestPath={selectedShortestPath}
+            selectedMSTAlgorithm={selectedMSTAlgorithm}
             normalElements={normalGraphElements}
             residualElements={residualGraphElements}
             showResidual={showResidual}

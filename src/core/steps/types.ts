@@ -48,6 +48,16 @@ export interface ShortestPathAlgorithmStep extends AlgorithmStep {
   }>;
 }
 
+export interface MSTAlgorithmStep extends AlgorithmStep {
+  mstAlgorithm: 'kruskal' | 'prim' | 'reverse-delete';
+  edgeLabel?: string;
+  edgeWeight?: number;
+  includedVertices?: string[];
+  acceptedEdgeLabels?: string[];
+  totalWeight: number;
+  components?: string[][];
+}
+
 /**
  * Snapshot captured after each successful iteration.
  */
