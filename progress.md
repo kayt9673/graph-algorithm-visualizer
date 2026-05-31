@@ -5,7 +5,6 @@
 I work on this when I have the time to, or when I desperately need to understand an algorithm I just learned and can't find any useful resources on it.
 
 ## Current To-Dos
-- [] MST algorithms (Prim, Kruskal, Reverse-Delete; implement with Union-Find) 
 - [ ] Maximum bipartite matching 
 
 ## (Ambitious) Thoughts for the Future
@@ -19,3 +18,4 @@ I work on this when I have the time to, or when I desperately need to understand
 ## Finished
 - [X] Maximum flow (Ford-Fulkerson)
 - [X] Shortest paths (Dijkstra, Bellman-Ford)
+- [x] MST algorithms (Prim, Kruskal, Reverse-Delete) 
